@@ -295,12 +295,277 @@ function CalendarExportModal({clientId,clientName,onClose}){
     </ModalWrap>
   );
 }
-fontFamily:"'JetBrains Mono',monospace",fontSize:10}}>{r.week}</div><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:"var(--dim)"}}>{r.label}</div></td><td style={{color:"#E8A020"}}>{r.move}</td><td style={{color:"#4ECDC4"}}>{r.recover}</td><td style={{color:"#E84040"}}>{r.fuel}</td><td style={{color:"#8B7CF6"}}>{r.connect}</td><td style={{color:"#60A5FA"}}>{r.breathe}</td><td>{r.misc}</td><td style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,color:"var(--gold)"}}>{weekTotal(r)}</td></tr>)}</tbody>
-          </table>
-          <div style={{display:"flex",gap:10,marginTop:18}}><button className="btn btn-gold" onClick={()=>onSave(rows)}>Import {rows.length} Week{rows.length!==1?"s":""}</button><button className="btn btn-ghost" onClick={onClose}>Cancel</button></div>
-        </div>
-      )}
-    </ModalWrap>
+
+// ─── STYLES ───────────────────────────────────────────────────────────────────
+
+const S=`
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--gold:#E8A020;--teal:#4ECDC4;--red:#E84040;--purple:#8B7CF6;--blue:#60A5FA;--bg:#080A0E;--surface:#0D1017;--border:#1A1F2E;--text:#E8E4DC;--muted:#C8C4BC;--dim:#5A6070;--deep:#0F1420;}
+body{background:var(--bg);color:var(--text);font-family:'Rajdhani',sans-serif}
+.root{min-height:100vh;background:var(--bg)}
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:72px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:20px 0;gap:4px;z-index:100}
+.sb-logo{font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--gold);letter-spacing:3px;margin-bottom:20px;writing-mode:vertical-rl;transform:rotate(180deg)}
+.sb-div{width:32px;height:1px;background:var(--border);margin:6px 0}
+.sb-btn{width:46px;height:46px;border:none;background:transparent;border-radius:6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;transition:all .2s;position:relative;color:var(--dim)}
+.sb-btn:hover{background:var(--border);color:var(--muted)}
+.sb-btn.on{background:rgba(232,160,32,.1);color:var(--gold)}
+.sb-btn.on::before{content:'';position:absolute;left:0;top:25%;bottom:25%;width:2px;background:var(--gold);border-radius:0 2px 2px 0}
+.sb-icon{font-size:15px;line-height:1}.sb-lbl{font-size:7px;letter-spacing:.8px;font-family:'JetBrains Mono';text-transform:uppercase}
+.main{margin-left:72px;padding:28px 32px}
+.h1{font-family:'Bebas Neue',sans-serif;font-size:38px;letter-spacing:3px;line-height:1}
+.h2{font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:2px;line-height:1}
+.mono{font-family:'JetBrains Mono',monospace}.tiny{font-size:9px;letter-spacing:2px;text-transform:uppercase}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:20px;position:relative;overflow:hidden}
+.card-gold{border-color:rgba(232,160,32,.25);background:linear-gradient(135deg,var(--surface),rgba(232,160,32,.03))}
+.card-teal{border-color:rgba(78,205,196,.25);background:linear-gradient(135deg,var(--surface),rgba(78,205,196,.03))}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:transparent;transition:background .3s}
+.card:hover::before{background:linear-gradient(90deg,transparent,var(--gold) 50%,transparent)}
+.sec{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--dim);margin-bottom:12px;display:flex;align-items:center;gap:12px}
+.sec::after{content:'';flex:1;height:1px;background:var(--border)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.g5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.g6{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+.gmain{display:grid;grid-template-columns:1fr 320px;gap:18px}
+.mb8{margin-bottom:8px}.mb12{margin-bottom:12px}.mb16{margin-bottom:16px}.mb20{margin-bottom:20px}.mb24{margin-bottom:24px}.mb32{margin-bottom:32px}
+.track{height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:8px}
+.fill{height:100%;border-radius:2px;transition:width .8s ease}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:3px;border:none;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:1.5px;text-transform:uppercase;transition:all .2s;white-space:nowrap}
+.btn-gold{background:var(--gold);color:#000;font-weight:700}.btn-gold:hover{background:#F4C050}
+.btn-ghost{background:transparent;color:var(--dim);border:1px solid var(--border)}.btn-ghost:hover{background:var(--border);color:var(--muted)}
+.btn-ghost.on{background:rgba(232,160,32,.1);color:var(--gold);border-color:rgba(232,160,32,.4)}
+.btn-red{background:rgba(232,64,64,.12);color:var(--red);border:1px solid rgba(232,64,64,.25)}.btn-red:hover{background:rgba(232,64,64,.22)}
+.btn-teal{background:rgba(78,205,196,.1);color:var(--teal);border:1px solid rgba(78,205,196,.25)}.btn-teal:hover{background:rgba(78,205,196,.18)}
+.btn-sm{padding:5px 11px;font-size:8.5px}.btn:disabled{opacity:.4;cursor:not-allowed}
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;padding-bottom:22px;border-bottom:1px solid var(--border)}
+.badge{display:inline-block;background:rgba(232,160,32,.1);border:1px solid rgba(232,160,32,.3);color:var(--gold);font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:3px;padding:5px 12px;border-radius:2px;text-transform:uppercase}
+.tabs{display:flex;border:1px solid var(--border);border-radius:3px;overflow:hidden;width:fit-content;margin-bottom:24px}
+.tab{padding:9px 18px;border:none;background:transparent;color:var(--dim);font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;border-right:1px solid var(--border);transition:all .2s}
+.tab:last-child{border-right:none}.tab:hover{background:var(--border);color:var(--muted)}.tab.on{background:rgba(232,160,32,.1);color:var(--gold)}
+.label{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:5px;display:block}
+.input{width:100%;padding:9px 13px;background:var(--deep);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:'Rajdhani',sans-serif;font-size:14px;outline:none;transition:border .2s}
+.input:focus{border-color:var(--gold)}.input-sm{padding:6px 10px;font-size:13px}.field{margin-bottom:14px}
+.input-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.stat-lbl{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
+.stat-val{font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:2px;line-height:1}
+.stat-sub{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--dim);margin-top:4px}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:28px;width:100%;max-width:560px;max-height:88vh;overflow-y:auto;position:relative}
+.modal-wide{max-width:860px}
+.modal-close{position:absolute;top:14px;right:14px;background:transparent;border:none;color:var(--dim);font-size:16px;cursor:pointer;padding:5px 8px;border-radius:3px}
+.modal-close:hover{background:var(--border);color:var(--muted)}
+.client-card{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:18px;cursor:pointer;transition:all .25s;overflow:hidden}
+.client-card:hover{border-color:rgba(232,160,32,.4);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.upload-zone{border:2px dashed var(--border);border-radius:4px;padding:28px 20px;text-align:center;cursor:pointer;transition:all .2s}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--gold);background:rgba(232,160,32,.04)}
+.upload-zone input{display:none}
+.code-block{background:var(--deep);border:1px solid var(--border);border-radius:3px;padding:12px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--teal);white-space:pre;overflow-x:auto;margin:10px 0}
+.share-banner{background:rgba(78,205,196,.07);border:1px solid rgba(78,205,196,.2);border-radius:4px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:22px}
+.workout-file{display:flex;align-items:center;gap:12px;padding:11px;background:var(--deep);border-radius:3px;border:1px solid var(--border);margin-bottom:7px;transition:all .2s}
+.workout-file:hover{border-color:rgba(232,160,32,.3)}
+.back-btn{display:inline-flex;align-items:center;gap:8px;color:var(--dim);font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;background:none;border:none;cursor:pointer;padding:6px 0;margin-bottom:18px;transition:color .2s}
+.back-btn:hover{color:var(--gold)}
+.pill{display:inline-block;padding:3px 9px;border-radius:20px;font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase}
+.perm-card{background:var(--deep);border:1px solid var(--border);border-radius:4px;padding:14px;text-align:center;position:relative}
+.perm-letter{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:2px;line-height:1}
+.perm-sub{font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);margin:3px 0 7px}
+.pts-table{width:100%;border-collapse:collapse}
+.pts-table th{font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);padding:8px 0;text-align:left;border-bottom:1px solid var(--border)}
+.pts-table td{padding:9px 0;border-bottom:1px solid var(--deep);font-size:13px}
+.pts-table tr:last-child td{border-bottom:none}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);border-left:1px solid var(--border);border-top:1px solid var(--border)}
+.cal-dow{font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);padding:8px 10px;background:var(--deep);border-right:1px solid var(--border);border-bottom:1px solid var(--border);text-align:center}
+.cal-cell{min-height:96px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:8px;cursor:pointer;transition:background .15s;position:relative;background:var(--bg)}
+.cal-cell:hover{background:rgba(232,160,32,.04)}
+.cal-cell.today-cell{background:rgba(232,160,32,.06)}
+.cal-cell.today-cell .cal-day-num{background:var(--gold);color:#000;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-weight:700}
+.cal-cell.other-month{opacity:.35}.cal-cell.selected-cell{background:rgba(139,124,246,.08);border-color:rgba(139,124,246,.4)}
+.cal-day-num{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:4px;width:22px;height:22px;display:flex;align-items:center;justify-content:center}
+.cal-dot-row{display:flex;gap:3px;flex-wrap:wrap;margin-top:3px}
+.cal-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.cal-pts-badge{font-family:'Bebas Neue',sans-serif;font-size:12px;color:var(--gold);letter-spacing:.5px;margin-top:2px}
+.cal-complete-bar{position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--deep);overflow:hidden}
+.cal-complete-fill{height:100%;background:var(--teal);transition:width .4s ease}
+.cal-event-chip{font-size:9px;font-family:'JetBrains Mono',monospace;padding:2px 5px;border-radius:2px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.week-strip{display:flex;gap:0;margin-bottom:22px;border:1px solid var(--border);border-radius:4px;overflow:hidden}
+.week-strip-day{flex:1;padding:10px 6px;border-right:1px solid var(--border);cursor:pointer;text-align:center;transition:all .15s}
+.week-strip-day:last-child{border-right:none}.week-strip-day:hover{background:var(--border)}
+.week-strip-day.wsd-active{background:rgba(232,160,32,.1);border-bottom:2px solid var(--gold)}
+.week-strip-day.wsd-today{border-bottom:2px solid var(--teal)}
+.day-panel{background:var(--surface);border:1px solid var(--border);border-radius:4px;overflow:hidden}
+.day-panel-hdr{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.day-task-row{display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid var(--deep)}
+.day-task-row:last-child{border-bottom:none}
+.task-check{width:16px;height:16px;border:1.5px solid #2A3040;border-radius:2px;flex-shrink:0;margin-top:2px;display:flex;align-items:center;justify-content:center;font-size:9px;transition:all .2s;cursor:pointer}
+.task-check.done{background:rgba(78,205,196,.15);border-color:var(--teal);color:var(--teal)}
+.assignment-form{background:var(--deep);border:1px solid var(--border);border-radius:4px;padding:16px;margin-top:12px}
+.event-banner{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:3px;margin-bottom:8px;border:1px solid}
+.note-card{background:var(--deep);border:1px solid var(--border);border-radius:4px;padding:14px;margin-bottom:10px}
+.toast{position:fixed;bottom:28px;right:28px;z-index:999;background:var(--surface);border:1px solid rgba(78,205,196,.4);border-radius:4px;padding:12px 18px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--teal);display:flex;align-items:center;gap:8px;animation:slideIn .3s ease,fadeOut .3s ease 2.5s forwards}
+@keyframes slideIn{from{transform:translateY(16px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes fadeOut{to{opacity:0;transform:translateY(8px)}}
+.client-banner{background:linear-gradient(135deg,rgba(139,124,246,.08),rgba(96,165,250,.04));border:1px solid rgba(139,124,246,.25);border-radius:4px;padding:12px 16px;display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.loading-screen{min-height:100vh;background:var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px}
+.fade-in{animation:fadeUp .3s ease both}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.pulse{animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+textarea.input{resize:vertical;min-height:80px}
+.action-item-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--deep)}
+.action-check{width:14px;height:14px;border:1.5px solid #2A3040;border-radius:2px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8px;cursor:pointer;transition:all .2s}
+.action-check.done{background:rgba(78,205,196,.15);border-color:var(--teal);color:var(--teal)}
+.compliance-bar-wrap{height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.compliance-bar-fill{height:100%;border-radius:3px;transition:width .8s ease}
+`;
+
+function Toast({msg,onDone}){useEffect(()=>{const t=setTimeout(onDone,3000);return()=>clearTimeout(t);},[]);return <div className="toast">✓ {msg}</div>;}
+function ModalWrap({onClose,children,wide}){return(<div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()}><div className={`modal fade-in${wide?" modal-wide":""}`}><button className="modal-close" onClick={onClose}>✕</button>{children}</div></div>);}
+
+function RadarChart({weeklyPoints}){
+  const pillars=PILLARS.filter(p=>["move","recover","fuel","connect","misc"].includes(p.id));
+  const n=pillars.length,CX=140,CY=130,R=90;
+  const last4=weeklyPoints.slice(-4);
+  const totals=pillars.map(p=>last4.length?last4.reduce((a,w)=>a+(w[p.id]||0),0)/last4.length:0);
+  const maxVal=Math.max(...totals,1);
+  const normalized=totals.map(v=>v/maxVal);
+  const angle=i=>(Math.PI*2*(i/n))-Math.PI/2;
+  const point=(r,i)=>({x:CX+r*Math.cos(angle(i)),y:CY+r*Math.sin(angle(i))});
+  const rings=[0.25,0.5,0.75,1.0];
+  const ringPath=frac=>{const pts=pillars.map((_,i)=>point(R*frac,i));return pts.map((p,i)=>`${i===0?"M":"L"}${p.x},${p.y}`).join(" ")+"Z";};
+  const dataPts=normalized.map((v,i)=>point(R*v,i));
+  const dataPath=dataPts.map((p,i)=>`${i===0?"M":"L"}${p.x},${p.y}`).join(" ")+"Z";
+  if(!weeklyPoints.length) return <div style={{textAlign:"center",padding:"24px",color:"var(--dim)"}}><div className="mono tiny">Import points data to see pillar balance</div></div>;
+  return(<svg viewBox="0 0 280 260" style={{width:"100%",maxWidth:280}}>{rings.map((f,i)=><path key={i} d={ringPath(f)} fill="none" stroke="#1A1F2E" strokeWidth={1}/>)}{pillars.map((_,i)=>{const p=point(R,i);return <line key={i} x1={CX} y1={CY} x2={p.x} y2={p.y} stroke="#1A1F2E" strokeWidth={1}/>;})}<path d={dataPath} fill="rgba(232,160,32,.12)" stroke="var(--gold)" strokeWidth={2} strokeLinejoin="round"/>{dataPts.map((p,i)=><circle key={i} cx={p.x} cy={p.y} r={4} fill={pillars[i].color} stroke="var(--bg)" strokeWidth={1.5}/>)}{pillars.map((pl,i)=>{const lp={x:point(R+22,i).x,y:point(R+22,i).y};const anchor=lp.x<CX-5?"end":lp.x>CX+5?"start":"middle";return <text key={i} x={lp.x} y={lp.y+4} fill={pl.color} fontSize={9} textAnchor={anchor} fontFamily="JetBrains Mono" letterSpacing="1">{pl.label.toUpperCase()}</text>;})}<circle cx={CX} cy={CY} r={3} fill="var(--gold)"/></svg>);
+}
+
+function PERMSChart({history}){
+  if(history.length<2) return <div style={{textAlign:"center",padding:"24px",color:"var(--dim)"}}><div className="mono tiny">Add at least 2 assessments to see trend</div></div>;
+  const W=620,H=160,PAD={t:16,r:20,b:36,l:32},iW=W-PAD.l-PAD.r,iH=H-PAD.t-PAD.b,n=history.length;
+  const xPos=i=>PAD.l+(n>1?i*iW/(n-1):iW/2);
+  const yPos=v=>PAD.t+iH-((v/5)*iH);
+  return(<svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",overflow:"visible"}}>{[1,2,3,4,5].map(v=>(<g key={v}><line x1={PAD.l} y1={yPos(v)} x2={W-PAD.r} y2={yPos(v)} stroke="#1A1F2E" strokeWidth={1}/><text x={PAD.l-5} y={yPos(v)+4} fill="#5A6070" fontSize={8} textAnchor="end" fontFamily="JetBrains Mono">{v}</text></g>))}{PERMS_KEYS.map(pk=>{const pts=history.map((h,i)=>({x:xPos(i),y:yPos(h.scores[pk.key]||0)}));const path=pts.map((p,i)=>`${i===0?"M":"L"}${p.x},${p.y}`).join(" ");return(<g key={pk.key}><path d={path} fill="none" stroke={pk.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round"/>{pts.map((p,i)=><circle key={i} cx={p.x} cy={p.y} r={3.5} fill={pk.color} stroke="var(--bg)" strokeWidth={1.5}/>)}</g>);})}{history.map((h,i)=><text key={i} x={xPos(i)} y={H-2} fill="#5A6070" fontSize={8} textAnchor="middle" fontFamily="JetBrains Mono">{h.quarter}</text>)}</svg>);
+}
+
+function PointsChart({data}){
+  if(!data.length) return null;
+  const W=620,H=180,PAD={t:16,r:20,b:44,l:40},iW=W-PAD.l-PAD.r,iH=H-PAD.t-PAD.b;
+  const pillars=["move","recover","fuel","connect","breathe","misc"];
+  const maxVal=Math.max(...data.flatMap(d=>pillars.map(k=>d[k]||0)),1),n=data.length;
+  const xPos=i=>PAD.l+(n>1?i*iW/(n-1):iW/2);
+  const yPos=v=>PAD.t+iH-(v/maxVal)*iH;
+  const yTicks=[0,Math.round(maxVal/4),Math.round(maxVal/2),Math.round(maxVal*3/4),maxVal];
+  return(<svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",overflow:"visible"}}>{yTicks.map(v=>(<g key={v}><line x1={PAD.l} y1={yPos(v)} x2={W-PAD.r} y2={yPos(v)} stroke="#1A1F2E" strokeWidth={1}/><text x={PAD.l-6} y={yPos(v)+4} fill="#5A6070" fontSize={8} textAnchor="end" fontFamily="JetBrains Mono">{v}</text></g>))}{pillars.map(k=>{const p=getPillar(k);const pts=data.map((d,i)=>({x:xPos(i),y:yPos(d[k]||0)}));const path=pts.map((pt,i)=>`${i===0?"M":"L"}${pt.x},${pt.y}`).join(" ");return(<g key={k}><path d={path} fill="none" stroke={p.color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" opacity={0.8}/>{pts.map((pt,i)=><circle key={i} cx={pt.x} cy={pt.y} r={2.5} fill={p.color} stroke="var(--bg)" strokeWidth={1.5}/>)}</g>);})}{data.map((d,i)=><text key={i} x={xPos(i)} y={H-2} fill="#5A6070" fontSize={7} textAnchor="middle" fontFamily="JetBrains Mono">{(d.label||d.week||"").split("–")[0].trim().slice(0,7)}</text>)}</svg>);
+}
+
+function ComplianceChart({weeklyRates}){
+  if(!weeklyRates||weeklyRates.length<2) return null;
+  const W=620,H=100,PAD={t:10,r:20,b:30,l:36},iW=W-PAD.l-PAD.r,iH=H-PAD.t-PAD.b,n=weeklyRates.length;
+  const xPos=i=>PAD.l+(n>1?i*iW/(n-1):iW/2);
+  const yPos=v=>PAD.t+iH-((v/100)*iH);
+  const pts=weeklyRates.map((r,i)=>({x:xPos(i),y:yPos(r.rate)}));
+  const path=pts.map((p,i)=>`${i===0?"M":"L"}${p.x},${p.y}`).join(" ");
+  const areaPath=path+` L${pts[pts.length-1].x},${PAD.t+iH} L${pts[0].x},${PAD.t+iH} Z`;
+  return(<svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",overflow:"visible"}}>{[25,50,75,100].map(v=>(<g key={v}><line x1={PAD.l} y1={yPos(v)} x2={W-PAD.r} y2={yPos(v)} stroke="#1A1F2E" strokeWidth={1}/><text x={PAD.l-5} y={yPos(v)+4} fill="#5A6070" fontSize={7} textAnchor="end" fontFamily="JetBrains Mono">{v}%</text></g>))}<path d={areaPath} fill="rgba(78,205,196,.08)"/><path d={path} fill="none" stroke="var(--teal)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round"/>{pts.map((p,i)=><circle key={i} cx={p.x} cy={p.y} r={3} fill={weeklyRates[i].rate>=75?"var(--teal)":weeklyRates[i].rate>=50?"var(--gold)":"var(--red)"} stroke="var(--bg)" strokeWidth={1.5}/>)}{weeklyRates.map((r,i)=><text key={i} x={xPos(i)} y={H-2} fill="#5A6070" fontSize={7} textAnchor="middle" fontFamily="JetBrains Mono">{r.week}</text>)}</svg>);
+}
+
+function ComplianceSection({compliance,compliancePage,setCompliancePage}){
+  const PAGE=12,total=compliance.weeklyRates.length,totalPages=Math.ceil(total/PAGE);
+  const safeP=compliancePage===null?totalPages-1:Math.max(0,Math.min(compliancePage,totalPages-1));
+  const pageRates=compliance.weeklyRates.slice(safeP*PAGE,safeP*PAGE+PAGE);
+  return(<div className="card mb24"><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><div style={{display:"flex",alignItems:"center",gap:12}}><div className="mono tiny" style={{color:"var(--dim)"}}>Task Compliance Trend</div>{total>PAGE&&<div className="mono tiny" style={{color:"var(--dim)"}}>{pageRates[0]?.week} — {pageRates[pageRates.length-1]?.week}</div>}</div><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{display:"flex",gap:12}}>{[["≥75%","var(--teal)"],["≥50%","var(--gold)"],["<50%","var(--red)"]].map(([l,c])=>(<div key={l} style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:"50%",background:c}}/><div className="mono tiny" style={{color:"var(--dim)"}}>{l}</div></div>))}</div><div style={{display:"flex",alignItems:"center",gap:6,marginLeft:8}}><button className="btn btn-ghost btn-sm" style={{padding:"4px 10px"}} disabled={safeP===0} onClick={()=>setCompliancePage(safeP-1)}>‹</button><div className="mono tiny" style={{color:"var(--dim)",minWidth:44,textAlign:"center"}}>{safeP+1} / {totalPages}</div><button className="btn btn-ghost btn-sm" style={{padding:"4px 10px"}} disabled={safeP===totalPages-1} onClick={()=>setCompliancePage(safeP+1)}>›</button>{compliancePage!==null&&<button className="btn btn-ghost btn-sm" style={{padding:"4px 8px",fontSize:"8px"}} onClick={()=>setCompliancePage(null)}>Latest</button>}</div></div></div><ComplianceChart weeklyRates={pageRates}/><div style={{display:"flex",justifyContent:"center",gap:5,marginTop:10,flexWrap:"wrap"}}>{Array.from({length:totalPages},(_,i)=>(<div key={i} onClick={()=>setCompliancePage(i)} style={{width:22,height:5,borderRadius:3,background:i===safeP?"var(--teal)":"var(--border)",cursor:"pointer",transition:"background .2s"}}/>))}</div></div>);
+}
+
+function LoginScreen({onLogin}){
+  const [email,setEmail]=useState(""),[pass,setPass]=useState(""),[ err,setErr]=useState(""),[ load,setLoad]=useState(false);
+  const handle=async()=>{setLoad(true);setErr("");try{await signIn(email,pass);onLogin();}catch(e){setErr(e.message);}finally{setLoad(false);}};
+  return(<div style={{minHeight:"100vh",background:"#080A0E",display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{width:360,background:"#0D1017",border:"1px solid #1A1F2E",borderRadius:6,padding:36}}><div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:32,color:"#E8A020",letterSpacing:3,marginBottom:4}}>APEX</div><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,letterSpacing:3,color:"#5A6070",textTransform:"uppercase",marginBottom:28}}>XPT · Coach Dashboard</div><label className="label">Email</label><input type="email" className="input" value={email} onChange={e=>setEmail(e.target.value)} style={{marginBottom:14}}/><label className="label">Password</label><input type="password" className="input" value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handle()} style={{marginBottom:20}}/>{err&&<div style={{color:"#E84040",fontFamily:"'JetBrains Mono',monospace",fontSize:10,marginBottom:14}}>{err}</div>}<button className="btn btn-gold" style={{width:"100%",justifyContent:"center"}} onClick={handle} disabled={load}>{load?"Signing in…":"Sign In"}</button></div></div>);
+}
+
+function TaskEditor({task,onSave,onCancel}){
+  const [form,setForm]=useState({pillar:task?.pillar||"move",category:task?.category||"",task:task?.task||"",points:task?.points??1,notes:task?.notes||""});
+  const s=k=>e=>setForm(f=>({...f,[k]:k==="points"?parseInt(e.target.value)||0:e.target.value}));
+  const cats=PILLAR_CATEGORIES[form.pillar]||[];
+  return(<div className="assignment-form"><div className="input-row" style={{gridTemplateColumns:"1fr 1fr",gap:10}}><div><label className="label">Pillar</label><select className="input input-sm" value={form.pillar} onChange={e=>setForm(f=>({...f,pillar:e.target.value,category:""}))}>{ PILLARS.map(p=><option key={p.id} value={p.id}>{p.label}</option>)}</select></div><div><label className="label">Category</label><select className="input input-sm" value={form.category} onChange={s("category")}><option value="">— select —</option>{cats.map(c=><option key={c} value={c}>{c}</option>)}</select></div></div><div className="field"><label className="label">Task</label><input className="input input-sm" value={form.task} onChange={s("task")} placeholder="e.g. Upper Body Power Block"/></div><div className="input-row" style={{gridTemplateColumns:"60px 1fr",gap:10,marginBottom:10}}><div><label className="label">Points</label><input className="input input-sm" type="number" min={1} max={30} value={form.points} onChange={s("points")}/></div><div><label className="label">Coach Notes</label><input className="input input-sm" value={form.notes} onChange={s("notes")} placeholder="Cues, targets…"/></div></div><div style={{display:"flex",gap:8}}><button className="btn btn-gold btn-sm" onClick={()=>onSave(form)} disabled={!form.task.trim()}>{task?"Save":"Add Task"}</button><button className="btn btn-ghost btn-sm" onClick={onCancel}>Cancel</button></div></div>);
+}
+
+function EventEditor({event,onSave,onCancel}){
+  const [form,setForm]=useState({title:event?.title||"",event_type:event?.event_type||"event",notes:event?.notes||""});
+  const s=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
+  const et=getEventType(form.event_type);
+  return(<div className="assignment-form" style={{borderColor:`${et.color}33`}}><div className="input-row" style={{gridTemplateColumns:"1fr 1fr",gap:10}}><div><label className="label">Title</label><input className="input input-sm" value={form.title} onChange={s("title")} placeholder="e.g. Sprint Triathlon"/></div><div><label className="label">Type</label><select className="input input-sm" value={form.event_type} onChange={s("event_type")}>{EVENT_TYPES.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}</select></div></div><div className="field"><label className="label">Notes</label><input className="input input-sm" value={form.notes} onChange={s("notes")} placeholder="Details, location…"/></div><div style={{display:"flex",gap:8}}><button className="btn btn-gold btn-sm" onClick={()=>onSave(form)} disabled={!form.title.trim()}>{event?"Save":"Add Event"}</button><button className="btn btn-ghost btn-sm" onClick={onCancel}>Cancel</button></div></div>);
+}
+
+function DayPanel({dateKey,tasks,events,isClientView,onAddTask,onUpdateTask,onDeleteTask,onCopyWeek,onAddEvent,onDeleteEvent}){
+  const [mode,setMode]=useState(null),[editTaskObj,setEditTaskObj]=useState(null),[confirmDelete,setConfirmDelete]=useState(null);
+  const [selected,setSelected]=useState(new Set()),[moveTarget,setMoveTarget]=useState(""),[selectMode,setSelectMode]=useState(false);
+  const toggleSelect=id=>setSelected(p=>{const n=new Set(p);n.has(id)?n.delete(id):n.add(id);return n;});
+  const selectAll=()=>setSelected(new Set(tasks.map(t=>t.id)));
+  const clearSelect=()=>{setSelected(new Set());setSelectMode(false);setMoveTarget("");};
+  const totalPts=tasks.reduce((a,t)=>a+t.points,0),donePts=tasks.filter(t=>t.done).reduce((a,t)=>a+t.points,0),pct=totalPts?Math.round(donePts/totalPts*100):0;
+  const d=new Date(dateKey+"T00:00:00"),isToday=dateKey===todayKey();
+  const grouped=PILLARS.reduce((acc,p)=>{const t=tasks.filter(x=>x.pillar===p.id);if(t.length)acc.push({pillar:p,tasks:t});return acc;},[]);
+  return(<div className="day-panel"><div className="day-panel-hdr"><div><div style={{display:"flex",alignItems:"center",gap:10}}>{isToday&&<div style={{width:7,height:7,borderRadius:"50%",background:"var(--teal)"}} className="pulse"/>}<div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:"2px"}}>{d.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}</div></div><div style={{display:"flex",gap:16,marginTop:6,alignItems:"center"}}><div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,color:"var(--gold)",letterSpacing:"1px"}}>{donePts}/{totalPts} pts</div><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"var(--dim)",letterSpacing:"1.5px"}}>{pct}% complete</div><div style={{width:80,height:3,background:"var(--border)",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:"var(--teal)",borderRadius:2}}/></div></div></div><div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"flex-end"}}>{!selectMode?(<>{!isClientView&&<button className="btn btn-ghost btn-sm" onClick={onCopyWeek}>Copy → Next Week</button>}<button className="btn btn-ghost btn-sm" onClick={()=>{setSelectMode(true);setMode(null);}}>☑ Select</button>{!isClientView&&<button className="btn btn-ghost btn-sm" style={{borderColor:"rgba(232,160,32,.4)",color:"var(--gold)"}} onClick={()=>setMode(mode==="event"?null:"event")}>+ Event</button>}<button className="btn btn-gold btn-sm" onClick={()=>setMode(mode==="task"?null:"task")}>+ Task</button></>):(<><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"var(--dim)",alignSelf:"center"}}>{selected.size} selected</div><button className="btn btn-ghost btn-sm" onClick={selectAll}>All</button><button className="btn btn-ghost btn-sm" onClick={clearSelect}>Cancel</button>{selected.size>0&&(<div style={{display:"flex",gap:6,alignItems:"center"}}><input type="date" className="input input-sm" style={{width:130,padding:"5px 8px"}} value={moveTarget} onChange={e=>setMoveTarget(e.target.value)}/><button className="btn btn-teal btn-sm" disabled={!moveTarget} onClick={async()=>{for(const id of selected)await onUpdateTask(id,{date:moveTarget});clearSelect();}}>Move</button></div>)}{selected.size>0&&!isClientView&&<button className="btn btn-red btn-sm" onClick={async()=>{if(!window.confirm(`Delete ${selected.size} task${selected.size!==1?"s":""}?`))return;for(const id of selected)await onDeleteTask(id);clearSelect();}}>Delete {selected.size}</button>}</>)}</div></div><div style={{padding:"16px 20px"}}>{events.length>0&&events.map(ev=>{const et=getEventType(ev.event_type);return(<div key={ev.id} className="event-banner" style={{background:`${et.color}12`,borderColor:`${et.color}44`,color:et.color}}><div style={{fontSize:14}}>📍</div><div style={{flex:1}}><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,letterSpacing:"1.5px",textTransform:"uppercase",opacity:.7}}>{et.label}</div><div style={{fontSize:14,fontWeight:600}}>{ev.title}</div>{ev.notes&&<div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,opacity:.7,marginTop:2}}>{ev.notes}</div>}</div>{!isClientView&&<button className="btn btn-ghost btn-sm" style={{padding:"3px 7px"}} onClick={()=>onDeleteEvent(ev.id)}>✕</button>}</div>);})}{mode==="event"&&!isClientView&&<div style={{marginBottom:14}}><EventEditor onSave={form=>{onAddEvent(form);setMode(null);}} onCancel={()=>setMode(null)}/></div>}{mode==="task"&&<div style={{marginBottom:16}}><TaskEditor onSave={form=>{onAddTask(form);setMode(null);}} onCancel={()=>setMode(null)}/></div>}{tasks.length===0&&!mode?(<div style={{textAlign:"center",padding:"28px 0",color:"var(--dim)"}}><div style={{fontSize:26,marginBottom:8}}>📅</div><div className="mono tiny">No assignments for this day</div><div className="mono tiny" style={{marginTop:6}}>Use the buttons above to add tasks</div></div>):(grouped.map(({pillar:p,tasks:pts_})=>(<div key={p.id} style={{marginBottom:16}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}><div style={{width:7,height:7,borderRadius:"50%",background:p.color}}/><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,letterSpacing:"2px",color:p.color,textTransform:"uppercase"}}>{p.label}</div></div>{pts_.map(task=>(<div key={task.id}><div className="day-task-row" style={{opacity:task.done?.7:1,background:selected.has(task.id)?"rgba(139,124,246,.08)":"transparent",borderRadius:3,transition:"background .15s"}}>{selectMode?(<div className={`action-check${selected.has(task.id)?" done":""}`} style={{cursor:"pointer",borderColor:selected.has(task.id)?"var(--purple)":"#2A3040",background:selected.has(task.id)?"rgba(139,124,246,.2)":"transparent"}} onClick={()=>toggleSelect(task.id)}>{selected.has(task.id)?"✓":""}</div>):(<div className={`task-check${task.done?" done":""}`} onClick={()=>onUpdateTask(task.id,{done:!task.done})}>{task.done?"✓":""}</div>)}<div style={{flex:1,minWidth:0}}><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,letterSpacing:"1.5px",textTransform:"uppercase",color:p.color,marginBottom:2}}>{task.category}</div><div style={{fontSize:14,fontWeight:500,color:task.done?"#3A4050":"var(--muted)",textDecoration:task.done?"line-through":"none",lineHeight:1.3}}>{task.task}</div>{task.notes&&<div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"var(--dim)",marginTop:3}}>{task.notes}</div>}{editTaskObj?.id===task.id&&<TaskEditor task={editTaskObj} onSave={form=>{onUpdateTask(task.id,form);setEditTaskObj(null);}} onCancel={()=>setEditTaskObj(null)}/>}</div><div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,color:task.done?"var(--gold)":"#3A4050",letterSpacing:"1px",flexShrink:0}}>{task.points}</div>{editTaskObj?.id!==task.id&&!selectMode&&(<div style={{display:"flex",gap:5,flexShrink:0}}><button className="btn btn-ghost btn-sm" style={{padding:"4px 8px"}} onClick={()=>setEditTaskObj(task)}>✎</button>{!isClientView&&<button className="btn btn-red btn-sm" style={{padding:"4px 8px"}} onClick={()=>setConfirmDelete(task.id)}>✕</button>}</div>)}</div>{confirmDelete===task.id&&(<div style={{display:"flex",gap:8,padding:"8px 0 4px 36px",alignItems:"center"}}><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"var(--red)"}}>Remove this task?</div><button className="btn btn-red btn-sm" onClick={()=>{onDeleteTask(task.id);setConfirmDelete(null);}}>Yes</button><button className="btn btn-ghost btn-sm" onClick={()=>setConfirmDelete(null)}>Cancel</button></div>)}</div>))}</div>)))}</div></div>);
+}
+
+function CalendarView({clientId,isClientView,onAssignmentsUpdate}){
+  const today=new Date(),todayStr=toKey(today);
+  const [calMode,setCalMode]=useState("day"),[viewDate,setViewDate]=useState(new Date(today));
+  const [selectedDate,setSelectedDate]=useState(todayStr),[assignments,setAssignments]=useState({}),[events,setEvents]=useState({});
+  const loadRange=useCallback(async()=>{try{const from=new Date(viewDate.getFullYear(),viewDate.getMonth()-1,1),to=new Date(viewDate.getFullYear(),viewDate.getMonth()+2,0);const [rows,evRows]=await Promise.all([fetchAssignments(clientId,toKey(from),toKey(to)),fetchEvents(clientId,toKey(from),toKey(to))]);const ga={},ge={};rows.forEach(r=>{if(!ga[r.date])ga[r.date]=[];ga[r.date].push(r);});evRows.forEach(r=>{if(!ge[r.date])ge[r.date]=[];ge[r.date].push(r);});setAssignments(ga);setEvents(ge);if(onAssignmentsUpdate)onAssignmentsUpdate(ga);}catch(e){console.error(e);}},[clientId,viewDate]);
+  useEffect(()=>{loadRange();},[loadRange]);
+  const getTasks=k=>assignments[k]||[],getEvts=k=>events[k]||[];
+  const totalPts=k=>getTasks(k).reduce((a,t)=>a+t.points,0);
+  const completePct=k=>{const t=getTasks(k);return t.length?Math.round(t.filter(x=>x.done).length/t.length*100):0;};
+  const notifyUpdate=newA=>{if(onAssignmentsUpdate)onAssignmentsUpdate(newA);};
+  const handleAddTask=async form=>{try{const row=await createAssignment(clientId,selectedDate,form);const newA={...assignments,[selectedDate]:[...(assignments[selectedDate]||[]),row]};setAssignments(newA);notifyUpdate(newA);}catch(e){console.error(e);}};
+  const handleUpdateTask=async(id,changes)=>{try{await updateAssignment(id,changes);const newA={...assignments};Object.keys(newA).forEach(k=>{newA[k]=newA[k].map(t=>t.id===id?{...t,...changes}:t);});setAssignments(newA);notifyUpdate(newA);}catch(e){console.error(e);}};
+  const handleDeleteTask=async id=>{try{await deleteAssignment(id);const newA={...assignments};Object.keys(newA).forEach(k=>{newA[k]=newA[k].filter(t=>t.id!==id);});setAssignments(newA);notifyUpdate(newA);}catch(e){console.error(e);}};
+  const handleCopy=async()=>{const from=new Date(selectedDate+"T00:00:00");from.setDate(from.getDate()+7);const dk=toKey(from);for(const t of getTasks(selectedDate)){try{const row=await createAssignment(clientId,dk,{pillar:t.pillar,category:t.category,task:t.task,points:t.points,notes:t.notes});setAssignments(p=>{const n={...p,[dk]:[...(p[dk]||[]),row]};notifyUpdate(n);return n;});}catch(e){console.error(e);}}};
+  const handleAddEvent=async form=>{try{const row=await createEvent(clientId,selectedDate,form);setEvents(p=>({...p,[selectedDate]:[...(p[selectedDate]||[]),row]}));}catch(e){console.error(e);}};
+  const handleDeleteEvent=async id=>{try{await deleteEvent(id);setEvents(p=>{const n={...p};Object.keys(n).forEach(k=>{n[k]=n[k].filter(e=>e.id!==id);});return n;});}catch(e){console.error(e);}};
+  const y=viewDate.getFullYear(),m=viewDate.getMonth();
+  const firstDay=new Date(y,m,1).getDay(),daysInMonth=new Date(y,m+1,0).getDate();
+  const cells=[];
+  for(let i=0;i<firstDay;i++){const d=new Date(y,m,1-firstDay+i);cells.push({date:d,cur:false});}
+  for(let i=1;i<=daysInMonth;i++)cells.push({date:new Date(y,m,i),cur:true});
+  const rem=7-(cells.length%7);if(rem<7)for(let i=1;i<=rem;i++)cells.push({date:new Date(y,m+1,i),cur:false});
+  const getWeekDates=anchor=>{const d=new Date(anchor+"T00:00:00"),sun=new Date(d);sun.setDate(d.getDate()-d.getDay());return Array.from({length:7},(_,i)=>{const x=new Date(sun);x.setDate(sun.getDate()+i);return toKey(x);});};
+  const weekDates=getWeekDates(selectedDate||todayStr);
+  const Panel=()=><DayPanel dateKey={selectedDate} tasks={getTasks(selectedDate)} events={getEvts(selectedDate)} isClientView={isClientView} onAddTask={handleAddTask} onUpdateTask={handleUpdateTask} onDeleteTask={handleDeleteTask} onCopyWeek={handleCopy} onAddEvent={handleAddEvent} onDeleteEvent={handleDeleteEvent}/>;
+  return(<div className="fade-in"><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><div style={{display:"flex",alignItems:"center",gap:16}}><div className="tabs" style={{marginBottom:0}}>{["day","week","month"].map(mode=><button key={mode} className={`tab${calMode===mode?" on":""}`} onClick={()=>setCalMode(mode)} style={{padding:"7px 16px"}}>{mode}</button>)}</div>{calMode==="month"&&(<div style={{display:"flex",alignItems:"center",gap:12}}><button className="btn btn-ghost btn-sm" onClick={()=>setViewDate(d=>{const n=new Date(d);n.setMonth(n.getMonth()-1);return n;})}>‹</button><div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:24,letterSpacing:"2px"}}>{MONTHS_LONG[m]} {y}</div><button className="btn btn-ghost btn-sm" onClick={()=>setViewDate(d=>{const n=new Date(d);n.setMonth(n.getMonth()+1);return n;})}>›</button></div>)}</div><button className="btn btn-ghost btn-sm" onClick={()=>{setSelectedDate(todayStr);setViewDate(new Date());}}>Today</button></div>{calMode==="day"&&(<><div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}><button className="btn btn-ghost btn-sm" onClick={()=>{const d=new Date(selectedDate+"T00:00:00");d.setDate(d.getDate()-1);setSelectedDate(toKey(d));}}>‹</button><div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,letterSpacing:"2px"}}>{new Date(selectedDate+"T00:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}</div><button className="btn btn-ghost btn-sm" onClick={()=>{const d=new Date(selectedDate+"T00:00:00");d.setDate(d.getDate()+1);setSelectedDate(toKey(d));}}>›</button></div><Panel/></>)}{calMode==="week"&&(<><div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}><button className="btn btn-ghost btn-sm" onClick={()=>{const d=new Date(selectedDate+"T00:00:00");d.setDate(d.getDate()-7);setSelectedDate(toKey(d));}}>‹ Prev</button><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:"var(--muted)"}}>{fmtDate(weekDates[0])} – {fmtDate(weekDates[6])}</div><button className="btn btn-ghost btn-sm" onClick={()=>{const d=new Date(selectedDate+"T00:00:00");d.setDate(d.getDate()+7);setSelectedDate(toKey(d));}}>Next ›</button></div><div className="week-strip">{weekDates.map(dk=>{const tasks=getTasks(dk),evts=getEvts(dk),isToday=dk===todayStr,isSel=dk===selectedDate,d=new Date(dk+"T00:00:00");return(<div key={dk} className={`week-strip-day${isSel?" wsd-active":""}${isToday?" wsd-today":""}`} onClick={()=>setSelectedDate(dk)}><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,letterSpacing:"2px",color:isToday?"var(--teal)":isSel?"var(--gold)":"var(--dim)",textTransform:"uppercase"}}>{DAYS_SHORT[d.getDay()]}</div><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:isSel?"var(--gold)":"var(--muted)",marginTop:3}}>{d.getDate()}</div>{evts.length>0&&<div style={{width:6,height:6,borderRadius:"50%",background:"var(--gold)",margin:"3px auto 0"}}/>}<div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:"var(--gold)",letterSpacing:"1px",marginTop:2}}>{tasks.length>0?totalPts(dk)+"pts":""}</div><div style={{display:"flex",gap:2,justifyContent:"center",marginTop:3}}>{[...new Set(tasks.map(t=>t.pillar))].slice(0,4).map(pid=><div key={pid} style={{width:5,height:5,borderRadius:"50%",background:getPillar(pid).color}}/>)}</div></div>);})} </div><Panel/></>)}{calMode==="month"&&(<><div className="cal-grid mb20" style={{borderRadius:4,overflow:"hidden"}}>{DAYS_SHORT.map(d=><div key={d} className="cal-dow">{d}</div>)}{cells.map((cell,i)=>{const key=toKey(cell.date),tasks=getTasks(key),evts=getEvts(key),pct=completePct(key),pts=totalPts(key),isToday=key===todayStr,isSel=key===selectedDate;const pillars=[...new Set(tasks.map(t=>t.pillar))];return(<div key={i} className={`cal-cell${!cell.cur?" other-month":""}${isToday?" today-cell":""}${isSel?" selected-cell":""}`} onClick={()=>setSelectedDate(key)}><div className="cal-day-num" style={{color:isSel?"var(--purple)":undefined}}>{cell.date.getDate()}</div>{evts.map(ev=>{const et=getEventType(ev.event_type);return(<div key={ev.id} className="cal-event-chip" style={{background:`${et.color}18`,color:et.color,border:`1px solid ${et.color}44`}}>📍 {ev.title}</div>);})}{tasks.length>0&&<><div className="cal-dot-row">{pillars.map(pid=><div key={pid} className="cal-dot" style={{background:getPillar(pid).color}}/>)}</div><div className="cal-pts-badge">{pts}pts</div></>}<div className="cal-complete-bar"><div className="cal-complete-fill" style={{width:`${pct}%`}}/></div></div>);})} </div>{selectedDate&&<Panel/>}</>)}</div>);
+}
+
+function AddClientModal({onSave,onClose}){
+  const [form,setForm]=useState({name:"",title:"",startDate:"",phase:"1",coachNote:""}),[loading,setLoading]=useState(false);
+  const s=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
+  const save=async()=>{if(!form.name.trim())return;setLoading(true);try{const token="apex-"+form.name.toLowerCase().replace(/\s+/g,"-").slice(0,8)+"-"+uid();await onSave({name:form.name.trim(),title:form.title.trim(),phase:parseInt(form.phase)||1,program_day:1,start_date:form.startDate||new Date().toISOString().split("T")[0],share_token:token,coach_note:form.coachNote});}finally{setLoading(false);}};
+  return(<ModalWrap onClose={onClose}><div className="h2" style={{color:"var(--gold)",marginBottom:22}}>New Client</div><div className="input-row"><div><label className="label">Full Name *</label><input className="input" value={form.name} onChange={s("name")}/></div><div><label className="label">Title / Company</label><input className="input" value={form.title} onChange={s("title")}/></div></div><div className="input-row"><div><label className="label">Start Date</label><input className="input" type="date" value={form.startDate} onChange={s("startDate")}/></div><div><label className="label">Phase</label><select className="input" value={form.phase} onChange={s("phase")}>{[1,2,3,4].map(p=><option key={p} value={p}>Phase {p} — {MACRO_PHASES[p-1].label}</option>)}</select></div></div><div className="field"><label className="label">Coach Note</label><textarea className="input" rows={3} value={form.coachNote} onChange={s("coachNote")}/></div><div style={{display:"flex",gap:10,marginTop:6}}><button className="btn btn-gold" onClick={save} disabled={loading||!form.name.trim()}>{loading?"Creating…":"Create Client"}</button><button className="btn btn-ghost" onClick={onClose}>Cancel</button></div></ModalWrap>);
+}
+
+function EditClientModal({client,onSave,onClose}){
+  const [form,setForm]=useState({name:client.name,title:client.title||"",phase:client.phase,start_date:client.start_date,coach_note:client.coach_note||""});
+  const s=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
+  return(<ModalWrap onClose={onClose}><div className="h2" style={{color:"var(--gold)",marginBottom:22}}>Edit Profile</div><div className="input-row"><div><label className="label">Name</label><input className="input" value={form.name} onChange={s("name")}/></div><div><label className="label">Title</label><input className="input" value={form.title} onChange={s("title")}/></div></div><div className="input-row"><div><label className="label">Start Date</label><input className="input" type="date" value={form.start_date} onChange={s("start_date")}/></div><div><label className="label">Phase</label><select className="input" value={form.phase} onChange={s("phase")}>{[1,2,3,4].map(p=><option key={p} value={p}>Phase {p} — {MACRO_PHASES[p-1].label}</option>)}</select></div></div><div className="field"><label className="label">Coach Note</label><textarea className="input" rows={3} value={form.coach_note} onChange={s("coach_note")}/></div><div style={{display:"flex",gap:10,marginTop:6}}><button className="btn btn-gold" onClick={()=>onSave({name:form.name,title:form.title,phase:parseInt(form.phase),start_date:form.start_date,coach_note:form.coach_note})}>Save</button><button className="btn btn-ghost" onClick={onClose}>Cancel</button></div></ModalWrap>);
+}
+
+function PERMSModal({client,permsHistory,onSave,onClose,editing}){
+  const [scores,setScores]=useState(editing?.scores?{...editing.scores}:{P:0,E:0,R:0,M:0,S:0}),[quarter,setQuarter]=useState(editing?.quarter||""),[date,setDate]=useState(editing?.date||new Date().toISOString().split("T")[0]);
+  const latest=permsHistory[permsHistory.length-1],avg=permsAvg(scores),prev=editing?null:latest;
+  const StarInput=({value,onChange})=>(<div style={{display:"flex",gap:4,justifyContent:"center",marginTop:6}}>{[1,2,3,4,5].map(n=><div key={n} onClick={()=>onChange(n)} style={{width:26,height:26,borderRadius:3,border:`1.5px solid ${n<=value?permsColor(value):"#2A3040"}`,background:n<=value?`${permsColor(value)}22`:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:n<=value?permsColor(value):"#3A4050",transition:"all .15s"}}>{n}</div>)}</div>);
+  return(<ModalWrap onClose={onClose}><div className="h2" style={{color:"var(--gold)",marginBottom:4}}>{editing?"Edit":"New"} P.E.R.M.S Assessment</div><div className="mono tiny" style={{color:"var(--dim)",marginBottom:18}}>{client.name} · 1 = worst · 5 = best</div><div className="input-row" style={{marginBottom:18}}><div><label className="label">Quarter *</label><input className="input" placeholder="Q2 2026" value={quarter} onChange={e=>setQuarter(e.target.value)}/></div><div><label className="label">Date</label><input className="input" type="date" value={date} onChange={e=>setDate(e.target.value)}/></div></div><div className="sec">Scores</div><div className="g5" style={{marginBottom:18}}>{PERMS_KEYS.map(pk=>{const v=scores[pk.key]||0,c=permsColor(v);return(<div className="perm-card" key={pk.key}><div className="perm-letter" style={{color:c}}>{pk.key}</div><div className="perm-sub">{pk.label}</div><div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:28,color:c,letterSpacing:"2px",marginTop:4}}>{v||"—"}</div><StarInput value={v} onChange={n=>setScores(s=>({...s,[pk.key]:n}))}/><div style={{height:2,background:"var(--border)",borderRadius:1,marginTop:8,overflow:"hidden"}}><div style={{height:"100%",width:`${(v/5)*100}%`,background:c,borderRadius:1}}/></div></div>);})}</div><div style={{display:"flex",alignItems:"center",gap:14,padding:"11px 14px",background:"var(--deep)",borderRadius:3,border:"1px solid var(--border)",marginBottom:18}}><div className="mono tiny" style={{color:"var(--dim)"}}>Composite Avg</div><div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:26,color:"var(--gold)",letterSpacing:"2px"}}>{avg} / 5</div>{prev&&avg>0&&<div className="mono tiny" style={{color:avg>=permsAvg(prev.scores)?"var(--teal)":"var(--red)"}}>{avg>=permsAvg(prev.scores)?"▲":"▼"} {Math.abs(+(avg-permsAvg(prev.scores)).toFixed(1))} vs {prev.quarter}</div>}</div><div style={{display:"flex",gap:10}}><button className="btn btn-gold" disabled={!quarter.trim()||!Object.values(scores).some(v=>v>0)} onClick={()=>onSave({quarter:quarter.trim(),date,scores:{...scores}})}>Save Assessment</button><button className="btn btn-ghost" onClick={onClose}>Cancel</button></div></ModalWrap>);
+}
+
+function CSVModal({clientName,onSave,onClose}){
+  const [dragging,setDragging]=useState(false),[rows,setRows]=useState(null),[error,setError]=useState(""),[isBridge,setIsBridge]=useState(false);
+  const fileRef=useRef();
+  const process=text=>{try{const bridge=text.includes("Form Name")||text.includes("Form ID");setIsBridge(bridge);setRows(bridge?parseBridgeCSV(text):parsePointsCSV(text));setError("");}catch(e){setError(e.message);setRows(null);}};
+  const onFile=e=>{const f=e.target.files[0];if(f){const r=new FileReader();r.onload=ev=>process(ev.target.result);r.readAsText(f);}};
+  const onDrop=e=>{e.preventDefault();setDragging(false);const f=e.dataTransfer.files[0];if(f){const r=new FileReader();r.onload=ev=>process(ev.target.result);r.readAsText(f);}};
+  return(<ModalWrap onClose={onClose} wide><div className="h2" style={{color:"var(--gold)",marginBottom:6}}>Import Weekly Points</div><div className="mono tiny" style={{color:"var(--dim)",marginBottom:18}}>{clientName} · Bridge Athletic CSV or APEX format</div><div className={`upload-zone${dragging?" drag":""}`} style={{marginBottom:14}} onClick={()=>fileRef.current.click()} onDragOver={e=>{e.preventDefault();setDragging(true);}} onDragLeave={()=>setDragging(false)} onDrop={onDrop}><input ref={fileRef} type="file" accept=".csv,.txt" onChange={onFile}/><div style={{fontSize:26,marginBottom:6}}>📄</div><div className="mono tiny" style={{color:"var(--muted)"}}>Drop CSV here or click to browse</div></div>{error&&<div style={{color:"var(--red)",fontFamily:"'JetBrains Mono',monospace",fontSize:11,marginTop:10,padding:"10px 14px",background:"rgba(232,64,64,.08)",borderRadius:3}}>{error}</div>}{rows&&(<div style={{marginTop:18}}>{isBridge&&<div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"var(--teal)",marginBottom:10,padding:"7px 12px",background:"rgba(78,205,196,.08)",borderRadius:3}}>✓ Bridge Athletic format — {rows.length} week{rows.length!==1?"s":""} calculated</div>}<div className="sec">{rows.length} week{rows.length!==1?"s":""}</div><table className="pts-table"><thead><tr><th>Week</th><th style={{color:"#E8A020"}}>Move</th><th style={{color:"#4ECDC4"}}>Recover</th><th style={{color:"#E84040"}}>Fuel</th><th style={{color:"#8B7CF6"}}>Connect</th><th style={{color:"#60A5FA"}}>Breathe</th><th>Misc</th><th>Total</th></tr></thead><tbody>{rows.map((r,i)=><tr key={i}><td><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10}}>{r.week}</div><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:"var(--dim)"}}>{r.label}</div></td><td style={{color:"#E8A020"}}>{r.move}</td><td style={{color:"#4ECDC4"}}>{r.recover}</td><td style={{color:"#E84040"}}>{r.fuel}</td><td style={{color:"#8B7CF6"}}>{r.connect}</td><td style={{color:"#60A5FA"}}>{r.breathe}</td><td>{r.misc}</td><td style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,color:"var(--gold)"}}>{weekTotal(r)}</td></tr>)}</tbody></table><div style={{display:"flex",gap:10,marginTop:18}}><button className="btn btn-gold" onClick={()=>onSave(rows)}>Import {rows.length} Week{rows.length!==1?"s":""}</button><button className="btn btn-ghost" onClick={onClose}>Cancel</button></div></div>)}</ModalWrap>);
+}
   );
 }
 
