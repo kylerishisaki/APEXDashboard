@@ -1997,6 +1997,8 @@ function ClientDashboard({ client, onBack, onRefresh, isClientView }) {
 
 // ─── ROSTER ───────────────────────────────────────────────────────────────────
 
+// ─── ROSTER ───────────────────────────────────────────────────────────────────
+
 function Roster({ clients, onSelect, onAdd }) {
   return(
     <div className="fade-in">
