@@ -677,51 +677,48 @@ const [mode,setMode]=useState(null);
             <div style={{width:80,height:3,background:"var(--border)",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:"var(--teal)",borderRadius:2}}/></div>
           </div>
         </div>
-        {!isClientView&&(
-          <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"flex-end"}}>
-            {!selectMode?(
-              <>
-                <button className="btn btn-ghost btn-sm" onClick={onCopyWeek}>Copy → Next Week</button>
-                <button className="btn btn-ghost btn-sm" onClick={()=>{setSelectMode(true);setMode(null);}}>☑ Select</button>
-                <button className="btn btn-ghost btn-sm" style={{borderColor:"rgba(232,160,32,.4)",color:"var(--gold)"}} onClick={()=>setMode(mode==="event"?null:"event")}>+ Event</button>
-                <button className="btn btn-gold btn-sm" onClick={()=>setMode(mode==="task"?null:"task")}>+ Task</button>
-              </>
-            ):(
-              <>
-                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"var(--dim)",alignSelf:"center"}}>{selected.size} selected</div>
-                <button className="btn btn-ghost btn-sm" onClick={selectAll}>All</button>
-                <button className="btn btn-ghost btn-sm" onClick={clearSelect}>Cancel</button>
-                {/* Move control */}
-                {selected.size>0&&(
-                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                    <input
-                      type="date"
-                      className="input input-sm"
-                      style={{width:130,padding:"5px 8px"}}
-                      value={moveTarget}
-                      onChange={e=>setMoveTarget(e.target.value)}
-                    />
-                    <button
-                      className="btn btn-teal btn-sm"
-                      disabled={!moveTarget}
-                      onClick={async()=>{
-                        for(const id of selected) await onUpdateTask(id,{date:moveTarget});
-                        clearSelect();
-                      }}
-                    >Move</button>
-                  </div>
-                )}
-                {selected.size>0&&(
-                  <button className="btn btn-red btn-sm" onClick={async()=>{
-                    if(!window.confirm(`Delete ${selected.size} task${selected.size!==1?"s":""}?`)) return;
-                    for(const id of selected) await onDeleteTask(id);
-                    clearSelect();
-                  }}>Delete {selected.size}</button>
-                )}
-              </>
-            )}
-          </div>
-        )}
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"flex-end"}}>
+          {!selectMode?(
+            <>
+              {!isClientView&&<button className="btn btn-ghost btn-sm" onClick={onCopyWeek}>Copy → Next Week</button>}
+              <button className="btn btn-ghost btn-sm" onClick={()=>{setSelectMode(true);setMode(null);}}>☑ Select</button>
+              {!isClientView&&<button className="btn btn-ghost btn-sm" style={{borderColor:"rgba(232,160,32,.4)",color:"var(--gold)"}} onClick={()=>setMode(mode==="event"?null:"event")}>+ Event</button>}
+              <button className="btn btn-gold btn-sm" onClick={()=>setMode(mode==="task"?null:"task")}>+ Task</button>
+            </>
+          ):(
+            <>
+              <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"var(--dim)",alignSelf:"center"}}>{selected.size} selected</div>
+              <button className="btn btn-ghost btn-sm" onClick={selectAll}>All</button>
+              <button className="btn btn-ghost btn-sm" onClick={clearSelect}>Cancel</button>
+              {selected.size>0&&(
+                <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                  <input
+                    type="date"
+                    className="input input-sm"
+                    style={{width:130,padding:"5px 8px"}}
+                    value={moveTarget}
+                    onChange={e=>setMoveTarget(e.target.value)}
+                  />
+                  <button
+                    className="btn btn-teal btn-sm"
+                    disabled={!moveTarget}
+                    onClick={async()=>{
+                      for(const id of selected) await onUpdateTask(id,{date:moveTarget});
+                      clearSelect();
+                    }}
+                  >Move</button>
+                </div>
+              )}
+              {selected.size>0&&!isClientView&&(
+                <button className="btn btn-red btn-sm" onClick={async()=>{
+                  if(!window.confirm(`Delete ${selected.size} task${selected.size!==1?"s":""}?`)) return;
+                  for(const id of selected) await onDeleteTask(id);
+                  clearSelect();
+                }}>Delete {selected.size}</button>
+              )}
+            </>
+          )}
+        </div>
       </div>
       <div style={{padding:"16px 20px"}}>
         {events.length>0&&events.map(ev=>{const et=getEventType(ev.event_type);return(
@@ -765,10 +762,10 @@ const [mode,setMode]=useState(null);
                       {editTaskObj?.id===task.id&&!isClientView&&<TaskEditor task={editTaskObj} onSave={form=>{onUpdateTask(task.id,form);setEditTaskObj(null);}} onCancel={()=>setEditTaskObj(null)}/>}
                     </div>
                     <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,color:task.done?"var(--gold)":"#3A4050",letterSpacing:"1px",flexShrink:0}}>{task.points}</div>
-                    {!isClientView&&editTaskObj?.id!==task.id&&(
+                    {editTaskObj?.id!==task.id&&!selectMode&&(
                       <div style={{display:"flex",gap:5,flexShrink:0}}>
                         <button className="btn btn-ghost btn-sm" style={{padding:"4px 8px"}} onClick={()=>setEditTaskObj(task)}>✎</button>
-                        <button className="btn btn-red btn-sm" style={{padding:"4px 8px"}} onClick={()=>setConfirmDelete(task.id)}>✕</button>
+                        {!isClientView&&<button className="btn btn-red btn-sm" style={{padding:"4px 8px"}} onClick={()=>setConfirmDelete(task.id)}>✕</button>}
                       </div>
                     )}
                   </div>
