@@ -1346,6 +1346,169 @@ function TaskListView({ clientId, isClientView }) {
   );
 }
 
+// ─── CALENDAR EXPORT ─────────────────────────────────────────────────────────
+
+function toICSDate(dateStr) {
+  return dateStr.replace(/-/g,"")+"T080000Z";
+}
+function toICSDateEnd(dateStr) {
+  return dateStr.replace(/-/g,"")+"T090000Z";
+}
+function escapeICS(str) {
+  return (str||"").replace(/[\\;,]/g,"\\$&").replace(/\n/g,"\\n");
+}
+
+function generateICS(assignments) {
+  const events = [];
+  Object.entries(assignments).forEach(([date, tasks]) => {
+    tasks.forEach(task => {
+      const p = getPillar(task.pillar);
+      events.push([
+        "BEGIN:VEVENT",
+        `UID:${task.id}@apex-platform`,
+        `DTSTART:${toICSDate(date)}`,
+        `DTEND:${toICSDateEnd(date)}`,
+        `SUMMARY:${escapeICS(`[${p.label.toUpperCase()}] ${task.task}`)}`,
+        `DESCRIPTION:${escapeICS(`${task.category}${task.notes?" — "+task.notes:""} · ${task.points} pts`)}`,
+        "END:VEVENT"
+      ].join("\r\n"));
+    });
+  });
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//APEX Platform//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    ...events,
+    "END:VCALENDAR"
+  ].join("\r\n");
+}
+
+function googleCalLink(date, task) {
+  const p = getPillar(task.pillar);
+  const start = date.replace(/-/g,"")+"T080000Z";
+  const end   = date.replace(/-/g,"")+"T090000Z";
+  const title = encodeURIComponent(`[${p.label}] ${task.task}`);
+  const details = encodeURIComponent(`${task.category}${task.notes?" — "+task.notes:""} · ${task.points} pts`);
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}`;
+}
+
+function CalendarExportModal({ clientId, clientName, onClose }) {
+  const [loading, setLoading] = useState(true);
+  const [assignments, setAssignments] = useState({});
+  const [mode, setMode] = useState("ics"); // "ics" | "google"
+  const [dateRange, setDateRange] = useState("month");
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const now = new Date();
+        let from, to;
+        if (dateRange === "week") {
+          from = new Date(now); from.setDate(now.getDate() - now.getDay());
+          to   = new Date(from); to.setDate(from.getDate() + 6);
+        } else if (dateRange === "month") {
+          from = new Date(now.getFullYear(), now.getMonth(), 1);
+          to   = new Date(now.getFullYear(), now.getMonth()+1, 0);
+        } else {
+          from = new Date(now.getFullYear(), 0, 1);
+          to   = new Date(now.getFullYear(), 11, 31);
+        }
+        const rows = await fetchAssignments(clientId, toKey(from), toKey(to));
+        const ga = {};
+        rows.forEach(r => { if(!ga[r.date]) ga[r.date]=[]; ga[r.date].push(r); });
+        setAssignments(ga);
+      } catch(e) { console.error(e); }
+      finally { setLoading(false); }
+    };
+    load();
+  }, [clientId, dateRange]);
+
+  const totalTasks = Object.values(assignments).reduce((a,v)=>a+v.length,0);
+
+  const downloadICS = () => {
+    const ics = generateICS(assignments);
+    const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `${clientName.replace(/\s+/g,"-")}-schedule.ics`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  const allDates = Object.keys(assignments).sort();
+
+  return (
+    <ModalWrap onClose={onClose} wide>
+      <div className="h2" style={{color:"var(--gold)",marginBottom:6}}>Add to Calendar</div>
+      <div className="mono tiny" style={{color:"var(--dim)",marginBottom:20}}>{clientName} · {totalTasks} tasks</div>
+
+      {/* Range selector */}
+      <div className="sec" style={{marginBottom:12}}>Date Range</div>
+      <div className="tabs" style={{marginBottom:20}}>
+        {[["week","This Week"],["month","This Month"],["year","Full Year"]].map(([v,l])=>(
+          <button key={v} className={`tab${dateRange===v?" on":""}`} onClick={()=>setDateRange(v)}>{l}</button>
+        ))}
+      </div>
+
+      {/* Method selector */}
+      <div className="sec" style={{marginBottom:12}}>Export Method</div>
+      <div style={{display:"flex",gap:12,marginBottom:20}}>
+        <div onClick={()=>setMode("ics")} style={{flex:1,padding:"14px 16px",background:mode==="ics"?"rgba(232,160,32,.08)":"var(--deep)",border:`1px solid ${mode==="ics"?"rgba(232,160,32,.4)":"var(--border)"}`,borderRadius:4,cursor:"pointer",transition:"all .2s"}}>
+          <div style={{fontSize:22,marginBottom:6}}>📅</div>
+          <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:mode==="ics"?"var(--gold)":"var(--muted)",fontWeight:700,marginBottom:4}}>Download ICS File</div>
+          <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:"var(--dim)"}}>Apple Calendar · Outlook · Any calendar app</div>
+        </div>
+        <div onClick={()=>setMode("google")} style={{flex:1,padding:"14px 16px",background:mode==="google"?"rgba(78,205,196,.08)":"var(--deep)",border:`1px solid ${mode==="google"?"rgba(78,205,196,.4)":"var(--border)"}`,borderRadius:4,cursor:"pointer",transition:"all .2s"}}>
+          <div style={{fontSize:22,marginBottom:6}}>🔗</div>
+          <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:mode==="google"?"var(--teal)":"var(--muted)",fontWeight:700,marginBottom:4}}>Google Calendar Links</div>
+          <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:"var(--dim)"}}>Click to add individual events</div>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{textAlign:"center",padding:"24px",color:"var(--dim)"}}><div className="mono tiny">Loading schedule…</div></div>
+      ) : totalTasks === 0 ? (
+        <div style={{textAlign:"center",padding:"24px",color:"var(--dim)"}}><div className="mono tiny">No tasks in this range</div></div>
+      ) : mode === "ics" ? (
+        <div>
+          <div style={{padding:"12px 16px",background:"rgba(78,205,196,.06)",border:"1px solid rgba(78,205,196,.2)",borderRadius:4,marginBottom:16}}>
+            <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"var(--teal)",marginBottom:4}}>How to import:</div>
+            <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:"var(--dim)",lineHeight:1.8}}>
+              <div><span style={{color:"var(--muted)"}}>Apple:</span> Double-click the downloaded file</div>
+              <div><span style={{color:"var(--muted)"}}>Outlook:</span> File → Open & Export → Import/Export</div>
+              <div><span style={{color:"var(--muted)"}}>Google:</span> calendar.google.com → Settings → Import</div>
+            </div>
+          </div>
+          <button className="btn btn-gold" onClick={downloadICS}>↓ Download {totalTasks} Events (.ics)</button>
+        </div>
+      ) : (
+        <div style={{maxHeight:340,overflowY:"auto"}}>
+          {allDates.map(date => (
+            <div key={date} style={{marginBottom:10}}>
+              <div className="mono tiny" style={{color:"var(--dim)",marginBottom:5}}>{fmtDate(date)}</div>
+              {assignments[date].map(task => {
+                const p = getPillar(task.pillar);
+                return (
+                  <div key={task.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid var(--deep)"}}>
+                    <div style={{width:7,height:7,borderRadius:"50%",background:p.color,flexShrink:0}}/>
+                    <div style={{flex:1,fontSize:13,color:"var(--muted)"}}>{task.task}</div>
+                    <a href={googleCalLink(date,task)} target="_blank" rel="noreferrer"
+                      style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:"var(--teal)",border:"1px solid rgba(78,205,196,.3)",padding:"4px 8px",borderRadius:3,textDecoration:"none",whiteSpace:"nowrap"}}>
+                      + Google Cal
+                    </a>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+    </ModalWrap>
+  );
+}
+
 function ClientDashboard({ client, onBack, onRefresh, isClientView }) {
   const [tab,setTab]=useState("overview");
   const [modal,setModal]=useState(null);
@@ -1361,6 +1524,7 @@ function ClientDashboard({ client, onBack, onRefresh, isClientView }) {
   const [calAssignments,setCalAssignments]=useState({});
   const [newNote,setNewNote]=useState({week:"",label:"",text:""});
   const [addingNote,setAddingNote]=useState(false);
+  const [calExport,setCalExport]=useState(false);
   const show=msg=>{setToast(msg);setModal(null);};
 
   useEffect(()=>{
@@ -1420,6 +1584,7 @@ function ClientDashboard({ client, onBack, onRefresh, isClientView }) {
             <span style={{color:"var(--teal)",fontSize:14}}>🔗</span>
             <div><div className="mono tiny" style={{color:"var(--teal)"}}>Client Share Link</div><div className="mono" style={{fontSize:9,color:"var(--dim)",marginTop:2,wordBreak:"break-all"}}>{shareUrl}</div></div>
           </div>
+          <button className="btn btn-ghost btn-sm" onClick={()=>setCalExport(true)}>📅 Add to Calendar</button>
           <button className="btn btn-teal btn-sm" onClick={()=>{navigator.clipboard?.writeText(shareUrl);show("Link copied");}}>Copy Link</button>
         </div>
       )}
@@ -1717,6 +1882,7 @@ function ClientDashboard({ client, onBack, onRefresh, isClientView }) {
   onScheduleParsed={async(dateKey,task)=>{await createAssignment(client.id,dateKey,task);show("Schedule imported");}}
   onClose={()=>setModal(null)}/>}
       {modal==="csv"&&<CSVModal clientName={client.name} onSave={async rows=>{await upsertWeeklyPoints(client.id,rows);setWeeklyPoints(await fetchWeeklyPoints(client.id));show(`${rows.length} week(s) imported`);}} onClose={()=>setModal(null)}/>}
+      {calExport&&<CalendarExportModal clientId={client.id} clientName={client.name} onClose={()=>setCalExport(false)}/>}
       {toast&&<Toast msg={toast} onDone={()=>setToast(null)}/>}
     </div>
   );
