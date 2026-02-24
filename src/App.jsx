@@ -69,7 +69,12 @@ const getEventType= id  => EVENT_TYPES.find(e => e.id === id) || EVENT_TYPES[0];
 const permsAvg    = s   => { const v=Object.values(s).filter(x=>x>0); return v.length?+(v.reduce((a,b)=>a+b,0)/v.length).toFixed(1):0; };
 const weekTotal   = w   => ["move","recover","fuel","connect","breathe","misc"].reduce((a,k)=>a+(w[k]||0),0);
 const phaseColor  = p   => MACRO_PHASES[(p||1)-1]?.color||"#E8A020";
-const toKey       = d   => d.toISOString().split("T")[0];
+const toKey = d => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const day = String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+};
 const todayKey    = ()  => toKey(new Date());
 const uid         = ()  => Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const fmtDate     = s   => new Date(s+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
