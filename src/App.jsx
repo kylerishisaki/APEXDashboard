@@ -146,16 +146,26 @@ function calcMomentum(weeklyPoints) {
 
 // ─── COMPLIANCE CALCULATOR ───────────────────────────────────────────────────
 
-function calcCompliance(assignments) {
-  // Group by week, calc done/total per week
+function calcCompliance(assignments, startDate) {
+  if(!Object.keys(assignments).length) return null;
+  const start = startDate ? new Date(startDate+"T00:00:00") : null;
   const byWeek={};
   Object.entries(assignments).forEach(([date,tasks])=>{
-    const wk=getWeekISO(new Date(date+"T00:00:00"));
-    if(!byWeek[wk]) byWeek[wk]={done:0,total:0};
-    byWeek[wk].total+=tasks.length;
-    byWeek[wk].done+=tasks.filter(t=>t.done).length;
+    let wkLabel;
+    if(start) {
+      const d=new Date(date+"T00:00:00");
+      const diffDays=Math.floor((d-start)/(1000*60*60*24));
+      const weekNum=Math.floor(diffDays/7)+1;
+      if(weekNum<1) return; // skip dates before start
+      wkLabel=`Wk ${weekNum}`;
+    } else {
+      wkLabel=getWeekISO(new Date(date+"T00:00:00"));
+    }
+    if(!byWeek[wkLabel]) byWeek[wkLabel]={done:0,total:0,weekNum:start?parseInt(wkLabel.replace("Wk ","")):0};
+    byWeek[wkLabel].total+=tasks.length;
+    byWeek[wkLabel].done+=tasks.filter(t=>t.done).length;
   });
-  const weeks=Object.entries(byWeek).sort((a,b)=>a[0].localeCompare(b[0]));
+  const weeks=Object.entries(byWeek).sort((a,b)=>a[1].weekNum-b[1].weekNum);
   if(!weeks.length) return null;
   const totalDone=weeks.reduce((a,[,v])=>a+v.done,0);
   const totalAll=weeks.reduce((a,[,v])=>a+v.total,0);
@@ -1553,7 +1563,7 @@ function ClientDashboard({ client, onBack, onRefresh, isClientView }) {
   const lastWeek=weeklyPoints[weeklyPoints.length-1];
   const aggregated=aggregatePoints(weeklyPoints,ptsPeriod);
   const momentum=calcMomentum(weeklyPoints);
-  const compliance=calcCompliance(allAssignments);
+  const compliance=calcCompliance(allAssignments, client.start_date);
 
   const currentWeekISO=getWeekISO(new Date());
   const currentWeekLabel=getWeekLabel(currentWeekISO);
