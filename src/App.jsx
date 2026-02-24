@@ -773,6 +773,45 @@ function TaskListView({ clientId, isClientView }) {
 
 // ─── CLIENT DASHBOARD ─────────────────────────────────────────────────────────
 
+function PointsSection({data,pointsPage,setPointsPage,period}){
+  const WIN=period==="weekly"?8:period==="monthly"?6:4;
+  const total=data.length;
+  if(!total) return null;
+  const maxStart=Math.max(0,total-WIN);
+  const startIdx=pointsPage===null?maxStart:Math.max(0,Math.min(pointsPage,maxStart));
+  const pageData=data.slice(startIdx,startIdx+WIN);
+  const atStart=startIdx===0,atEnd=startIdx>=maxStart;
+  return(
+    <div className="card mb20">
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <div className="mono tiny" style={{color:"var(--dim)"}}>Points Trend</div>
+          {total>WIN&&<div className="mono tiny" style={{color:"var(--dim)"}}>{pageData[0]?.label||pageData[0]?.week} — {pageData[pageData.length-1]?.label||pageData[pageData.length-1]?.week}</div>}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+            {PILLARS.map(p=><div key={p.id} style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:"50%",background:p.color}}/><div className="mono tiny" style={{color:"var(--dim)"}}>{p.label}</div></div>)}
+          </div>
+          {total>WIN&&(
+            <div style={{display:"flex",alignItems:"center",gap:6,marginLeft:8}}>
+              <button className="btn btn-ghost btn-sm" style={{padding:"4px 10px"}} disabled={atStart} onClick={()=>setPointsPage(startIdx-1)}>‹</button>
+              <div className="mono tiny" style={{color:"var(--dim)",minWidth:60,textAlign:"center"}}>{startIdx+1}–{Math.min(startIdx+WIN,total)} / {total}</div>
+              <button className="btn btn-ghost btn-sm" style={{padding:"4px 10px"}} disabled={atEnd} onClick={()=>setPointsPage(startIdx+1)}>›</button>
+              {!atEnd&&<button className="btn btn-ghost btn-sm" style={{padding:"4px 8px",fontSize:"8px"}} onClick={()=>setPointsPage(null)}>Latest</button>}
+            </div>
+          )}
+        </div>
+      </div>
+      <PointsChart data={pageData}/>
+      {total>WIN&&(
+        <div style={{height:4,background:"var(--border)",borderRadius:2,marginTop:10,overflow:"hidden"}}>
+          <div style={{height:"100%",background:"var(--gold)",borderRadius:2,transition:"all .3s",width:`${(WIN/total)*100}%`,marginLeft:`${(startIdx/total)*100}%`}}/>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ClientDashboard({ client, onBack, onRefresh, isClientView }) {
   const [tab,setTab]=useState("overview");
   const [modal,setModal]=useState(null);
@@ -789,6 +828,7 @@ function ClientDashboard({ client, onBack, onRefresh, isClientView }) {
   const [addingNote,setAddingNote]=useState(false);
   const [calExport,setCalExport]=useState(false);
   const [compliancePage,setCompliancePage]=useState(null);
+  const [pointsPage,setPointsPage]=useState(null);
   const [noteForm,setNoteForm]=useState({week_iso:"",week_label:"",note:""});
   const show=msg=>setToast(msg);
 
@@ -1031,7 +1071,7 @@ function ClientDashboard({ client, onBack, onRefresh, isClientView }) {
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
             <div className="tabs" style={{marginBottom:0}}>
               {[["weekly","Weekly"],["monthly","Monthly"],["quarterly","Quarterly"],["annual","Annual"]].map(([v,l])=>(
-                <button key={v} className={`tab${ptsPeriod===v?" on":""}`} onClick={()=>setPtsPeriod(v)}>{l}</button>
+                <button key={v} className={`tab${ptsPeriod===v?" on":""}`} onClick={()=>{setPtsPeriod(v);setPointsPage(null);}}>{l}</button>
               ))}
             </div>
             {!isClientView&&(
@@ -1043,15 +1083,7 @@ function ClientDashboard({ client, onBack, onRefresh, isClientView }) {
           </div>
           {aggPoints.length>0?(
             <>
-              <div className="card mb20">
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                  <div className="mono tiny" style={{color:"var(--dim)"}}>Points Trend</div>
-                  <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
-                    {PILLARS.map(p=><div key={p.id} style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:"50%",background:p.color}}/><div className="mono tiny" style={{color:"var(--dim)"}}>{p.label}</div></div>)}
-                  </div>
-                </div>
-                <PointsChart data={aggPoints}/>
-              </div>
+              <PointsSection data={aggPoints} pointsPage={pointsPage} setPointsPage={setPointsPage} period={ptsPeriod}/>
               <div className="card" style={{padding:0,overflow:"hidden"}}>
                 <table className="pts-table" style={{width:"100%"}}>
                   <thead><tr style={{background:"var(--deep)"}}><th style={{padding:"10px 16px"}}>Period</th>{PILLARS.map(p=><th key={p.id} style={{padding:"10px 8px",color:p.color}}>{p.label}</th>)}<th style={{padding:"10px 8px"}}>Total</th>{!isClientView&&ptsPeriod==="weekly"&&<th/>}</tr></thead>
