@@ -1522,6 +1522,7 @@ function ClientDashboard({ client, onBack, onRefresh, isClientView }) {
   const [ptsPeriod,setPtsPeriod]=useState("weekly");
   const [editingPerms,setEditingPerms]=useState(null);
   const [calAssignments,setCalAssignments]=useState({});
+  const [allAssignments,setAllAssignments]=useState({});
   const [newNote,setNewNote]=useState({week:"",label:"",text:""});
   const [addingNote,setAddingNote]=useState(false);
   const [calExport,setCalExport]=useState(false);
@@ -1530,7 +1531,17 @@ function ClientDashboard({ client, onBack, onRefresh, isClientView }) {
   useEffect(()=>{
     const load=async()=>{
       setLoading(true);
-      try{const[g,p,w,wo,cn]=await Promise.all([fetchGoals(client.id),fetchPERMS(client.id),fetchWeeklyPoints(client.id),fetchWorkouts(client.id),fetchCoachNotes(client.id)]);setGoals(g);setPermsHistory(p);setWeeklyPoints(w);setWorkouts(wo);setCoachNotes(cn);}
+      try{
+      const[g,p,w,wo,cn]=await Promise.all([fetchGoals(client.id),fetchPERMS(client.id),fetchWeeklyPoints(client.id),fetchWorkouts(client.id),fetchCoachNotes(client.id)]);
+      setGoals(g);setPermsHistory(p);setWeeklyPoints(w);setWorkouts(wo);setCoachNotes(cn);
+      // load full assignment history for compliance
+      const from=new Date(); from.setFullYear(from.getFullYear()-1);
+      const to=new Date(); to.setFullYear(to.getFullYear()+1);
+      const rows=await fetchAssignments(client.id,toKey(from),toKey(to));
+      const ga={};
+      rows.forEach(r=>{if(!ga[r.date])ga[r.date]=[];ga[r.date].push(r);});
+      setAllAssignments(ga);
+    }
       catch(e){console.error(e);}finally{setLoading(false);}
     };load();
   },[client.id]);
@@ -1542,7 +1553,7 @@ function ClientDashboard({ client, onBack, onRefresh, isClientView }) {
   const lastWeek=weeklyPoints[weeklyPoints.length-1];
   const aggregated=aggregatePoints(weeklyPoints,ptsPeriod);
   const momentum=calcMomentum(weeklyPoints);
-  const compliance=calcCompliance(calAssignments);
+  const compliance=calcCompliance(allAssignments);
 
   const currentWeekISO=getWeekISO(new Date());
   const currentWeekLabel=getWeekLabel(currentWeekISO);
