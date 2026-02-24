@@ -1,3 +1,300 @@
+import { useState, useRef, useCallback, useEffect } from "react";
+import { supabase } from "./lib/supabase";
+import {
+  signIn, signOut,
+  fetchClients, createClient, updateClient,
+  fetchClientByToken,
+  fetchGoals, upsertGoals,
+  fetchPERMS, upsertPERMS, deletePERMS,
+  fetchWeeklyPoints, upsertWeeklyPoints, deleteWeeklyPoints,
+  fetchAssignments, createAssignment, updateAssignment, deleteAssignment,
+  fetchEvents, createEvent, deleteEvent,
+  fetchCoachNotes, upsertCoachNote, deleteCoachNote,
+  fetchWorkouts, uploadWorkout, deleteWorkout,
+  parseBridgeCSV,
+} from "./lib/db";
+import * as pdfjsLib from 'pdfjs-dist';
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).href;
+
+const PILLARS = [
+  { id: "move",    label: "Move",    color: "#E8A020" },
+  { id: "recover", label: "Recover", color: "#4ECDC4" },
+  { id: "fuel",    label: "Fuel",    color: "#E84040" },
+  { id: "connect", label: "Connect", color: "#8B7CF6" },
+  { id: "breathe", label: "Breathe", color: "#60A5FA" },
+  { id: "misc",    label: "Misc",    color: "#A0A8B0" },
+];
+const PILLAR_CATEGORIES = {
+  move:    ["Strength","HIIT","Conditioning","Mobility/Correctives","General Activity"],
+  recover: ["Sleep","Breathwork","Hot/Cold Exposure","Recovery Education"],
+  fuel:    ["Nutrition Compliance","Supplements","Fuel Education","Behavioral Shift"],
+  connect: ["Breathwork","Meditation","Journalling","Nature (Unplugged)","Family (Unplugged)","Friends (Unplugged)"],
+  breathe: ["AM Protocol","PM Protocol","Box Breathing","Wim Hof","4-7-8"],
+  misc:    ["Cognitive Performance","Challenge Sign-up","Challenge Complete"],
+};
+const PERMS_KEYS = [
+  { key: "P", label: "Physical",   color: "#E8A020" },
+  { key: "E", label: "Emotional",  color: "#4ECDC4" },
+  { key: "R", label: "Relational", color: "#8B7CF6" },
+  { key: "M", label: "Mental",     color: "#60A5FA" },
+  { key: "S", label: "Spiritual",  color: "#E84040" },
+];
+const MACRO_PHASES = [
+  { label: "Establish Baseline",  months: "Jan – Feb", color: "#4ECDC4" },
+  { label: "Build Capacity",       months: "Mar – Apr", color: "#E8A020" },
+  { label: "Performance Peak",     months: "May – Jun", color: "#E84040" },
+  { label: "Maintenance & Growth", months: "Jul – Aug", color: "#8B7CF6" },
+];
+const EVENT_TYPES = [
+  { id: "event",       label: "Major Event",  color: "#E8A020" },
+  { id: "competition", label: "Competition",  color: "#E84040" },
+  { id: "milestone",   label: "Milestone",    color: "#4ECDC4" },
+  { id: "travel",      label: "Travel",       color: "#8B7CF6" },
+  { id: "rest",        label: "Rest Day",     color: "#60A5FA" },
+];
+const DAYS_SHORT  = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
+const MONTHS_LONG = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+const getPillar   = id  => PILLARS.find(p => p.id === id) || PILLARS[0];
+const getEventType= id  => EVENT_TYPES.find(e => e.id === id) || EVENT_TYPES[0];
+const permsAvg    = s   => { const v=Object.values(s).filter(x=>x>0); return v.length?+(v.reduce((a,b)=>a+b,0)/v.length).toFixed(1):0; };
+const weekTotal   = w   => ["move","recover","fuel","connect","breathe","misc"].reduce((a,k)=>a+(w[k]||0),0);
+const phaseColor  = p   => MACRO_PHASES[(p||1)-1]?.color||"#E8A020";
+const toKey       = d   => { const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0"); return `${y}-${m}-${day}`; };
+const todayKey    = ()  => toKey(new Date());
+const uid         = ()  => Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const fmtDate     = s   => new Date(s+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
+const permsColor  = v   => v>=4?"var(--teal)":v>=3?"var(--gold)":"var(--red)";
+
+function getWeekISO(date) {
+  const d = new Date(date); d.setHours(0,0,0,0);
+  d.setDate(d.getDate()+4-(d.getDay()||7));
+  const jan1 = new Date(d.getFullYear(),0,1);
+  const wk = Math.ceil(((d-jan1)/86400000+1)/7);
+  return `${d.getFullYear()}-W${String(wk).padStart(2,"0")}`;
+}
+function getWeekLabel(weekISO) {
+  const [y,w]=weekISO.split("-W"); const year=parseInt(y),week=parseInt(w);
+  const jan4=new Date(year,0,4); const mon=new Date(jan4);
+  mon.setDate(jan4.getDate()-((jan4.getDay()+6)%7)+(week-1)*7);
+  const sun=new Date(mon); sun.setDate(mon.getDate()+6);
+  const f=d=>d.toLocaleDateString("en-US",{month:"short",day:"numeric"});
+  return `${f(mon)} – ${f(sun)}`;
+}
+function parsePointsCSV(text) {
+  const lines=text.trim().split("\n").filter(l=>l.trim());
+  if(lines.length<2) throw new Error("CSV needs a header row and data rows.");
+  const headers=lines[0].split(",").map(h=>h.trim().toLowerCase());
+  const req=["week","label","move","recover","fuel","connect","breathe","misc"];
+  for(const r of req) if(!headers.includes(r)) throw new Error(`Missing column: "${r}"`);
+  return lines.slice(1).map((line,i)=>{
+    const vals=line.split(",").map(v=>v.trim()); const row={};
+    headers.forEach((h,idx)=>{row[h]=vals[idx]||"";});
+    const p={week:row.week,label:row.label,move:parseInt(row.move)||0,recover:parseInt(row.recover)||0,fuel:parseInt(row.fuel)||0,connect:parseInt(row.connect)||0,breathe:parseInt(row.breathe)||0,misc:parseInt(row.misc)||0};
+    if(!p.week) throw new Error(`Row ${i+2}: missing week value.`);
+    return p;
+  });
+}
+function aggregatePoints(weeks,period) {
+  if(period==="weekly") return weeks;
+  const grouped={};
+  weeks.forEach(w=>{
+    const [yearStr,weekStr]=w.week.split("-W");
+    const year=parseInt(yearStr),weekNum=parseInt(weekStr);
+    let key;
+    if(period==="monthly"){const m=Math.min(11,Math.floor((weekNum-1)/4.33));key=`${year}-${String(m+1).padStart(2,"0")}`;}
+    else if(period==="quarterly"){const q=Math.ceil(weekNum/13);key=`${year}-Q${q}`;}
+    else{key=`${year}`;}
+    if(!grouped[key])grouped[key]={week:key,label:key,move:0,recover:0,fuel:0,connect:0,breathe:0,misc:0};
+    ["move","recover","fuel","connect","breathe","misc"].forEach(k=>{grouped[key][k]+=(w[k]||0);});
+  });
+  return Object.values(grouped).sort((a,b)=>a.week.localeCompare(b.week));
+}
+function calcMomentum(weeklyPoints) {
+  if(weeklyPoints.length<2) return null;
+  const last4=weeklyPoints.slice(-4);
+  const half=Math.ceil(last4.length/2);
+  const older=last4.slice(0,half); const newer=last4.slice(half);
+  const avgOld=older.reduce((a,w)=>a+weekTotal(w),0)/older.length;
+  const avgNew=newer.reduce((a,w)=>a+weekTotal(w),0)/newer.length;
+  if(avgOld===0) return null;
+  const pct=Math.round(((avgNew-avgOld)/avgOld)*100);
+  return { pct, up: pct>=0, weeks: last4.length };
+}
+function calcCompliance(assignments, startDate) {
+  if(!Object.keys(assignments).length) return null;
+  const start = startDate ? new Date(startDate+"T00:00:00") : null;
+  const byWeek={};
+  Object.entries(assignments).forEach(([date,tasks])=>{
+    let wkLabel;
+    if(start){
+      const d=new Date(date+"T00:00:00");
+      const diffDays=Math.floor((d-start)/(1000*60*60*24));
+      const weekNum=Math.floor(diffDays/7)+1;
+      if(weekNum<1) return;
+      wkLabel=`Wk ${weekNum}`;
+    } else {
+      wkLabel=getWeekISO(new Date(date+"T00:00:00"));
+    }
+    if(!byWeek[wkLabel])byWeek[wkLabel]={done:0,total:0,weekNum:start?parseInt(wkLabel.replace("Wk ","")):0};
+    byWeek[wkLabel].total+=tasks.length;
+    byWeek[wkLabel].done+=tasks.filter(t=>t.done).length;
+  });
+  const weeks=Object.entries(byWeek).sort((a,b)=>a[1].weekNum-b[1].weekNum);
+  if(!weeks.length) return null;
+  const totalDone=weeks.reduce((a,[,v])=>a+v.done,0);
+  const totalAll=weeks.reduce((a,[,v])=>a+v.total,0);
+  const overall=totalAll?Math.round(totalDone/totalAll*100):0;
+  const last4=weeks.slice(-4);
+  const recentRate=last4.length&&last4.reduce((a,[,v])=>a+v.total,0)>0
+    ?Math.round(last4.reduce((a,[,v])=>a+v.done,0)/last4.reduce((a,[,v])=>a+v.total,0)*100):0;
+  const weeklyRates=weeks.map(([wk,v])=>({week:wk,rate:v.total?Math.round(v.done/v.total*100):0,done:v.done,total:v.total}));
+  return { overall, recentRate, weeklyRates };
+}
+
+const WORKOUT_PILLAR_MAP = [
+  { match: /recovery|mobility|nature|family|rest/i,   pillar:"recover", category:"Recovery Education" },
+  { match: /conditioning.*run|run/i,                  pillar:"move",    category:"Conditioning" },
+  { match: /conditioning.*non.load|non.load/i,        pillar:"recover", category:"Breathwork" },
+  { match: /kb happy hour|kettlebell/i,               pillar:"move",    category:"General Activity" },
+  { match: /lower push|upper pull|upper push|lower pull|total body|strength|barbell|squat|deadlift|bench/i, pillar:"move", category:"Strength" },
+  { match: /swim|bike|cycle/i,                        pillar:"move",    category:"Conditioning" },
+];
+function mapWorkout(name, durationMin) {
+  for (const rule of WORKOUT_PILLAR_MAP) {
+    if (rule.match.test(name)) {
+      const pts = Math.max(1, Math.round(durationMin / 60));
+      return { pillar: rule.pillar, category: rule.category, points: pts };
+    }
+  }
+  return { pillar: "move", category: "General Activity", points: Math.max(1, Math.round(durationMin / 60)) };
+}
+async function parsePDFSchedule(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let pages = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    pages.push(content.items.map(item => item.str).join(" "));
+  }
+  const fullText = pages.join(" ");
+  const dayRe = /Day\s+(\d+)\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\s+([\w\s\/\(\)\-]+?)\s+(\d+)\s+min/g;
+  const results = [];
+  let m;
+  while ((m = dayRe.exec(fullText)) !== null) {
+    const [,, mon, dayOfMonth, workoutRaw, durStr] = m;
+    const workout = workoutRaw.trim().replace(/\s+/g, " ");
+    const duration = parseInt(durStr) || 0;
+    const monthMap = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+    const now = new Date(); let year = now.getFullYear();
+    const mo = monthMap[mon];
+    if (mo < now.getMonth() - 1) year++;
+    const date = new Date(year, mo, parseInt(dayOfMonth));
+    const dateKey = toKey(date);
+    const mapped = mapWorkout(workout, duration);
+    results.push({ dateKey, workout, duration, ...mapped, task: workout, notes: duration > 0 ? `${duration} min` : "" });
+  }
+  return results;
+}
+
+function toICSDate(dateStr){return dateStr.replace(/-/g,"")+"T080000Z";}
+function toICSDateEnd(dateStr){return dateStr.replace(/-/g,"")+"T090000Z";}
+function escapeICS(str){return (str||"").replace(/[\\;,]/g,"\\$&").replace(/\n/g,"\\n");}
+function generateICS(assignments){
+  const events=[];
+  Object.entries(assignments).forEach(([date,tasks])=>{
+    tasks.forEach(task=>{
+      const p=getPillar(task.pillar);
+      events.push(["BEGIN:VEVENT",`UID:${task.id}@apex`,`DTSTART:${toICSDate(date)}`,`DTEND:${toICSDateEnd(date)}`,`SUMMARY:${escapeICS("["+p.label.toUpperCase()+"] "+task.task)}`,`DESCRIPTION:${escapeICS(task.category+(task.notes?" — "+task.notes:"")+" · "+task.points+" pts")}`, "END:VEVENT"].join("\r\n"));
+    });
+  });
+  return ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//APEX//EN","CALSCALE:GREGORIAN","METHOD:PUBLISH",...events,"END:VCALENDAR"].join("\r\n");
+}
+function googleCalLink(date,task){
+  const p=getPillar(task.pillar);
+  const start=date.replace(/-/g,"")+"T080000Z",end=date.replace(/-/g,"")+"T090000Z";
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent("["+p.label+"] "+task.task)}&dates=${start}/${end}&details=${encodeURIComponent(task.category+(task.notes?" — "+task.notes:"")+" · "+task.points+" pts")}`;
+}
+
+function CalendarExportModal({clientId,clientName,onClose}){
+  const [loading,setLoading]=useState(true);
+  const [assignments,setAssignments]=useState({});
+  const [mode,setMode]=useState("ics");
+  const [dateRange,setDateRange]=useState("month");
+  useEffect(()=>{
+    const load=async()=>{
+      setLoading(true);
+      try{
+        const now=new Date(); let from,to;
+        if(dateRange==="week"){from=new Date(now);from.setDate(now.getDate()-now.getDay());to=new Date(from);to.setDate(from.getDate()+6);}
+        else if(dateRange==="month"){from=new Date(now.getFullYear(),now.getMonth(),1);to=new Date(now.getFullYear(),now.getMonth()+1,0);}
+        else{from=new Date(now.getFullYear(),0,1);to=new Date(now.getFullYear(),11,31);}
+        const rows=await fetchAssignments(clientId,toKey(from),toKey(to));
+        const ga={};rows.forEach(r=>{if(!ga[r.date])ga[r.date]=[];ga[r.date].push(r);});setAssignments(ga);
+      }catch(e){console.error(e);}finally{setLoading(false);}
+    };load();
+  },[clientId,dateRange]);
+  const totalTasks=Object.values(assignments).reduce((a,v)=>a+v.length,0);
+  const allDates=Object.keys(assignments).sort();
+  const downloadICS=()=>{
+    const blob=new Blob([generateICS(assignments)],{type:"text/calendar;charset=utf-8"});
+    const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`${clientName.replace(/\s+/g,"-")}-schedule.ics`;a.click();URL.revokeObjectURL(url);
+  };
+  return(
+    <ModalWrap onClose={onClose} wide>
+      <div className="h2" style={{color:"var(--gold)",marginBottom:6}}>Add to Calendar</div>
+      <div className="mono tiny" style={{color:"var(--dim)",marginBottom:20}}>{clientName} · {totalTasks} tasks</div>
+      <div className="sec" style={{marginBottom:12}}>Date Range</div>
+      <div className="tabs" style={{marginBottom:20}}>
+        {[["week","This Week"],["month","This Month"],["year","Full Year"]].map(([v,l])=>(
+          <button key={v} className={`tab${dateRange===v?" on":""}`} onClick={()=>setDateRange(v)}>{l}</button>
+        ))}
+      </div>
+      <div className="sec" style={{marginBottom:12}}>Export Method</div>
+      <div style={{display:"flex",gap:12,marginBottom:20}}>
+        {[["ics","📅","Download ICS File","Apple · Outlook · Any app","var(--gold)","rgba(232,160,32,.08)","rgba(232,160,32,.4)"],
+          ["google","🔗","Google Calendar Links","Add individual events","var(--teal)","rgba(78,205,196,.08)","rgba(78,205,196,.4)"]].map(([v,icon,title,sub,col,bg,border])=>(
+          <div key={v} onClick={()=>setMode(v)} style={{flex:1,padding:"14px 16px",background:mode===v?bg:"var(--deep)",border:`1px solid ${mode===v?border:"var(--border)"}`,borderRadius:4,cursor:"pointer"}}>
+            <div style={{fontSize:22,marginBottom:6}}>{icon}</div>
+            <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:mode===v?col:"var(--muted)",fontWeight:700,marginBottom:4}}>{title}</div>
+            <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:"var(--dim)"}}>{sub}</div>
+          </div>
+        ))}
+      </div>
+      {loading?<div style={{textAlign:"center",padding:"24px",color:"var(--dim)"}}><div className="mono tiny">Loading…</div></div>
+      :totalTasks===0?<div style={{textAlign:"center",padding:"24px"}}><div className="mono tiny" style={{color:"var(--dim)"}}>No tasks in this range</div></div>
+      :mode==="ics"?(
+        <div>
+          <div style={{padding:"12px 16px",background:"rgba(78,205,196,.06)",border:"1px solid rgba(78,205,196,.2)",borderRadius:4,marginBottom:16}}>
+            <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"var(--teal)",marginBottom:4}}>How to import:</div>
+            <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:"var(--dim)",lineHeight:1.8}}>
+              <div><span style={{color:"var(--muted)"}}>Apple:</span> Double-click the downloaded file</div>
+              <div><span style={{color:"var(--muted)"}}>Outlook:</span> File → Open & Export → Import/Export</div>
+              <div><span style={{color:"var(--muted)"}}>Google:</span> calendar.google.com → Settings → Import</div>
+            </div>
+          </div>
+          <button className="btn btn-gold" onClick={downloadICS}>↓ Download {totalTasks} Events (.ics)</button>
+        </div>
+      ):(
+        <div style={{maxHeight:340,overflowY:"auto"}}>
+          {allDates.map(date=>(
+            <div key={date} style={{marginBottom:10}}>
+              <div className="mono tiny" style={{color:"var(--dim)",marginBottom:5}}>{fmtDate(date)}</div>
+              {assignments[date].map(task=>{const p=getPillar(task.pillar);return(
+                <div key={task.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid var(--deep)"}}>
+                  <div style={{width:7,height:7,borderRadius:"50%",background:p.color,flexShrink:0}}/>
+                  <div style={{flex:1,fontSize:13,color:"var(--muted)"}}>{task.task}</div>
+                  <a href={googleCalLink(date,task)} target="_blank" rel="noreferrer" style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:"var(--teal)",border:"1px solid rgba(78,205,196,.3)",padding:"4px 8px",borderRadius:3,textDecoration:"none",whiteSpace:"nowrap"}}>+ Google Cal</a>
+                </div>
+              );})}
+            </div>
+          ))}
+        </div>
+      )}
+    </ModalWrap>
+  );
+}
 fontFamily:"'JetBrains Mono',monospace",fontSize:10}}>{r.week}</div><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:"var(--dim)"}}>{r.label}</div></td><td style={{color:"#E8A020"}}>{r.move}</td><td style={{color:"#4ECDC4"}}>{r.recover}</td><td style={{color:"#E84040"}}>{r.fuel}</td><td style={{color:"#8B7CF6"}}>{r.connect}</td><td style={{color:"#60A5FA"}}>{r.breathe}</td><td>{r.misc}</td><td style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:18,color:"var(--gold)"}}>{weekTotal(r)}</td></tr>)}</tbody>
           </table>
           <div style={{display:"flex",gap:10,marginTop:18}}><button className="btn btn-gold" onClick={()=>onSave(rows)}>Import {rows.length} Week{rows.length!==1?"s":""}</button><button className="btn btn-ghost" onClick={onClose}>Cancel</button></div>
