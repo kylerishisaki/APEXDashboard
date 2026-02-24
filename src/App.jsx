@@ -1518,7 +1518,55 @@ function CalendarExportModal({ clientId, clientName, onClose }) {
     </ModalWrap>
   );
 }
+function ComplianceSection({ compliance, compliancePage, setCompliancePage }) {
+  const PAGE = 12;
+  const total = compliance.weeklyRates.length;
+  const totalPages = Math.ceil(total / PAGE);
+  const safeP = compliancePage === null
+    ? totalPages - 1
+    : Math.max(0, Math.min(compliancePage, totalPages - 1));
+  const pageRates = compliance.weeklyRates.slice(safeP * PAGE, safeP * PAGE + PAGE);
+  const startWk = pageRates[0]?.week;
+  const endWk = pageRates[pageRates.length - 1]?.week;
 
+  return (
+    <div className="card mb24">
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <div className="mono tiny" style={{color:"var(--dim)"}}>Task Compliance Trend</div>
+          {total > PAGE && <div className="mono tiny" style={{color:"var(--dim)"}}>{startWk} — {endWk}</div>}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{display:"flex",gap:12}}>
+            {[["≥75%","var(--teal)"],["≥50%","var(--gold)"],["<50%","var(--red)"]].map(([l,c])=>(
+              <div key={l} style={{display:"flex",alignItems:"center",gap:5}}>
+                <div style={{width:8,height:8,borderRadius:"50%",background:c}}/>
+                <div className="mono tiny" style={{color:"var(--dim)"}}>{l}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginLeft:8}}>
+            <button className="btn btn-ghost btn-sm" style={{padding:"4px 10px"}} disabled={safeP===0} onClick={()=>setCompliancePage(safeP-1)}>‹</button>
+            <div className="mono tiny" style={{color:"var(--dim)",minWidth:44,textAlign:"center"}}>{safeP+1} / {totalPages}</div>
+            <button className="btn btn-ghost btn-sm" style={{padding:"4px 10px"}} disabled={safeP===totalPages-1} onClick={()=>setCompliancePage(safeP+1)}>›</button>
+            {compliancePage!==null && (
+              <button className="btn btn-ghost btn-sm" style={{padding:"4px 8px",fontSize:"8px"}} onClick={()=>setCompliancePage(null)}>Latest</button>
+            )}
+          </div>
+        </div>
+      </div>
+      <ComplianceChart weeklyRates={pageRates}/>
+      <div style={{display:"flex",justifyContent:"center",gap:5,marginTop:10,flexWrap:"wrap"}}>
+        {Array.from({length:totalPages},(_,i)=>(
+          <div key={i} onClick={()=>setCompliancePage(i)}
+            style={{width:22,height:5,borderRadius:3,background:i===safeP?"var(--teal)":"var(--border)",cursor:"pointer",transition:"background .2s"}}/>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ClientDashboard({ client, onBack, onRefresh, isClientView }) {
 function ClientDashboard({ client, onBack, onRefresh, isClientView }) {
   const [tab,setTab]=useState("overview");
   const [modal,setModal]=useState(null);
@@ -1655,7 +1703,9 @@ function ClientDashboard({ client, onBack, onRefresh, isClientView }) {
           </div>
 
           {/* ── COMPLIANCE TREND ── */}
-          {compliance&&compliance.weeklyRates.length>=2&&(()=>{
+          {compliance&&compliance.weeklyRates.length>=2&&(
+        <ComplianceSection compliance={compliance} compliancePage={compliancePage} setCompliancePage={setCompliancePage}/>
+      )}
             const PAGE=12; // weeks per page
             const total=compliance.weeklyRates.length;
             const totalPages=Math.ceil(total/PAGE);
