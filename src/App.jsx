@@ -1552,7 +1552,7 @@ function ClientDashboard({ client, onBack, onRefresh, isClientView }) {
   return(
     <div className="fade-in">
       {!isClientView&&<button className="back-btn" onClick={onBack}>← All Clients</button>}
-      {isClientView&&<div className="client-banner"><span style={{fontSize:16}}>👤</span><div><div className="mono tiny" style={{color:"var(--purple)"}}>XPT · APEX — Client Portal</div><div style={{fontSize:13,color:"var(--muted)",marginTop:2}}>Welcome back, {client.name}.</div></div></div>}
+      {isClientView&&<div className="client-banner"><span style={{fontSize:16}}>👤</span><div><div className="mono tiny" style={{color:"var(--purple)"}}>XPT · APEX — Client Portal</div><div style={{fontSize:13,color:"var(--muted)",marginTop:2}}>Welcome back, {client.name}.</div></div><button className="btn btn-ghost btn-sm" style={{marginLeft:"auto"}} onClick={()=>setCalExport(true)}>📅 Add to Calendar</button></div>}
 
       <div className="page-header">
         <div>
@@ -1584,7 +1584,6 @@ function ClientDashboard({ client, onBack, onRefresh, isClientView }) {
             <span style={{color:"var(--teal)",fontSize:14}}>🔗</span>
             <div><div className="mono tiny" style={{color:"var(--teal)"}}>Client Share Link</div><div className="mono" style={{fontSize:9,color:"var(--dim)",marginTop:2,wordBreak:"break-all"}}>{shareUrl}</div></div>
           </div>
-          <button className="btn btn-ghost btn-sm" onClick={()=>setCalExport(true)}>📅 Add to Calendar</button>
           <button className="btn btn-teal btn-sm" onClick={()=>{navigator.clipboard?.writeText(shareUrl);show("Link copied");}}>Copy Link</button>
         </div>
       )}
