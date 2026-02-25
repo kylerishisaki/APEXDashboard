@@ -10,6 +10,7 @@ import {
   fetchAssignments, createAssignment, updateAssignment, deleteAssignment,
   fetchEvents, createEvent, deleteEvent,
   fetchCoachNotes, upsertCoachNote, deleteCoachNote,
+  fetchJournalEntries, createJournalEntry, updateJournalEntry, deleteJournalEntry,
   fetchWorkouts, uploadWorkout, deleteWorkout,
   parseBridgeCSV,
 } from "./lib/db";
@@ -773,6 +774,155 @@ function TaskListView({ clientId, isClientView }) {
 
 // ─── CLIENT DASHBOARD ─────────────────────────────────────────────────────────
 
+function JournalView({ clientId, isClientView }) {
+  const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [newContent, setNewContent] = useState("");
+  const [newDate, setNewDate] = useState(todayKey());
+  const [replyTo, setReplyTo] = useState(null);
+  const [replyContent, setReplyContent] = useState("");
+  const [editId, setEditId] = useState(null);
+  const [editContent, setEditContent] = useState("");
+  const [filterDate, setFilterDate] = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    try { setEntries(await fetchJournalEntries(clientId)); }
+    catch(e) { console.error(e); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, [clientId]);
+
+  const topLevel = entries.filter(e => !e.parent_id);
+  const replies = id => entries.filter(e => e.parent_id === id);
+  const filtered = filterDate
+    ? topLevel.filter(e => e.date === filterDate)
+    : topLevel;
+
+  const handleAdd = async () => {
+    if (!newContent.trim()) return;
+    await createJournalEntry(clientId, newDate, newContent.trim(), isClientView ? "client" : "coach");
+    setNewContent(""); await load();
+  };
+  const handleReply = async (parentId, parentDate) => {
+    if (!replyContent.trim()) return;
+    await createJournalEntry(clientId, parentDate, replyContent.trim(), isClientView ? "client" : "coach", parentId);
+    setReplyContent(""); setReplyTo(null); await load();
+  };
+  const handleEdit = async (id) => {
+    if (!editContent.trim()) return;
+    await updateJournalEntry(id, editContent.trim());
+    setEditId(null); await load();
+  };
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this entry?")) return;
+    await deleteJournalEntry(id); await load();
+  };
+
+  const EntryCard = ({ entry, isReply }) => {
+    const isCoach = entry.author === "coach";
+    const entryReplies = replies(entry.id);
+    return (
+      <div style={{ marginBottom: isReply ? 0 : 16 }}>
+        <div style={{
+          background: isCoach ? "rgba(232,160,32,.06)" : "var(--deep)",
+          border: `1px solid ${isCoach ? "rgba(232,160,32,.25)" : "var(--border)"}`,
+          borderRadius: 4, padding: "14px 16px",
+          marginLeft: isReply ? 32 : 0,
+          borderLeft: isReply ? `3px solid ${isCoach ? "var(--gold)" : "var(--purple)"}` : undefined
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 7, height: 7, borderRadius: "50%", background: isCoach ? "var(--gold)" : "var(--purple)" }} />
+              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, color: isCoach ? "var(--gold)" : "var(--purple)", textTransform: "uppercase", letterSpacing: "1.5px" }}>
+                {isCoach ? "Coach" : "Client"}
+              </div>
+              {!isReply && <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, color: "var(--dim)" }}>{fmtDate(entry.date)}</div>}
+              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 8, color: "var(--dim)" }}>
+                {new Date(entry.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button className="btn btn-ghost btn-sm" style={{ padding: "3px 8px" }} onClick={() => { setEditId(entry.id); setEditContent(entry.content); }}>✎</button>
+              <button className="btn btn-red btn-sm" style={{ padding: "3px 8px" }} onClick={() => handleDelete(entry.id)}>✕</button>
+            </div>
+          </div>
+          {editId === entry.id ? (
+            <div>
+              <textarea className="input" rows={3} value={editContent} onChange={e => setEditContent(e.target.value)} style={{ marginBottom: 8 }} />
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn btn-gold btn-sm" onClick={() => handleEdit(entry.id)}>Save</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => setEditId(null)}>Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ fontSize: 14, color: "var(--muted)", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{entry.content}</div>
+          )}
+          {!isReply && editId !== entry.id && (
+            <div style={{ marginTop: 10 }}>
+              {replyTo === entry.id ? (
+                <div style={{ marginTop: 8 }}>
+                  <textarea className="input" rows={2} placeholder={isClientView ? "Add a note…" : "Add a coach comment…"} value={replyContent} onChange={e => setReplyContent(e.target.value)} style={{ marginBottom: 8 }} />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button className="btn btn-gold btn-sm" onClick={() => handleReply(entry.id, entry.date)}>Post</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => { setReplyTo(null); setReplyContent(""); }}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <button className="btn btn-ghost btn-sm" style={{ fontSize: "8px" }} onClick={() => { setReplyTo(entry.id); setReplyContent(""); }}>
+                  {isClientView ? "+ Add Note" : "+ Coach Comment"}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+        {entryReplies.length > 0 && (
+          <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
+            {entryReplies.map(r => <EntryCard key={r.id} entry={r} isReply />)}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="fade-in">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <div className="mono tiny" style={{ color: "var(--dim)", marginBottom: 4 }}>Daily Journal</div>
+          <div style={{ fontSize: 13, color: "var(--dim)" }}>{isClientView ? "Log your daily notes and track your progress" : "Client journal — add comments and coaching notes"}</div>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div className="mono tiny" style={{ color: "var(--dim)" }}>Filter by date:</div>
+          <input type="date" className="input input-sm" style={{ width: 140 }} value={filterDate} onChange={e => setFilterDate(e.target.value)} />
+          {filterDate && <button className="btn btn-ghost btn-sm" onClick={() => setFilterDate("")}>Clear</button>}
+        </div>
+      </div>
+
+      <div className="card mb20" style={{ borderColor: "rgba(139,124,246,.25)", background: "rgba(139,124,246,.04)" }}>
+        <div className="mono tiny" style={{ color: "var(--purple)", marginBottom: 12 }}>{isClientView ? "New Journal Entry" : "New Coach Entry"}</div>
+        <div style={{ display: "flex", gap: 10, marginBottom: 10, alignItems: "center" }}>
+          <label className="label" style={{ margin: 0, whiteSpace: "nowrap" }}>Date</label>
+          <input type="date" className="input input-sm" style={{ width: 150 }} value={newDate} onChange={e => setNewDate(e.target.value)} />
+        </div>
+        <textarea className="input" rows={3} placeholder={isClientView ? "How are you feeling today? What did you do? Any wins or challenges?" : "Add a coaching note, observation, or program update…"} value={newContent} onChange={e => setNewContent(e.target.value)} style={{ marginBottom: 10 }} />
+        <button className="btn btn-gold" disabled={!newContent.trim()} onClick={handleAdd}>Post Entry</button>
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign: "center", padding: "32px", color: "var(--dim)" }}><div className="mono tiny">Loading journal…</div></div>
+      ) : filtered.length === 0 ? (
+        <div className="card" style={{ textAlign: "center", padding: "48px" }}>
+          <div style={{ fontSize: 32, marginBottom: 10 }}>📓</div>
+          <div className="mono tiny" style={{ color: "var(--dim)" }}>{filterDate ? "No entries for this date" : "No journal entries yet"}</div>
+        </div>
+      ) : (
+        filtered.map(entry => <EntryCard key={entry.id} entry={entry} isReply={false} />)
+      )}
+    </div>
+  );
+}
+
 function PointsSection({data,pointsPage,setPointsPage,period}){
   const WIN=period==="quarterly"?12:period==="monthly"?4:2;
   const total=data.length;
@@ -895,7 +1045,7 @@ function ClientDashboard({ client, onBack, onRefresh, isClientView }) {
       </div>
 
       <div className="tabs">
-        {[{id:"overview",label:"Overview"},{id:"schedule",label:"Schedule"},{id:"tasklist",label:"Task List"},{id:"points",label:"Points"},{id:"workouts",label:"Workouts"}].map(t=>(
+        {[{id:"overview",label:"Overview"},{id:"schedule",label:"Schedule"},{id:"tasklist",label:"Task List"},{id:"points",label:"Points"},{id:"journal",label:"Journal"},{id:"workouts",label:"Workouts"}].map(t=>(
           <button key={t.id} className={`tab${tab===t.id?" on":""}`} onClick={()=>setTab(t.id)}>{t.label}</button>
         ))}
       </div>
@@ -1100,6 +1250,8 @@ function ClientDashboard({ client, onBack, onRefresh, isClientView }) {
           )}
         </div>
       )}
+
+      {tab==="journal"&&<JournalView clientId={client.id} isClientView={isClientView}/>}
 
       {tab==="workouts"&&(
         <div className="fade-in">
