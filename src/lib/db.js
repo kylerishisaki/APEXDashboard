@@ -202,3 +202,37 @@ export function parseBridgeCSV(text) {
   return Object.values(byWeek).sort((a, b) => a.week.localeCompare(b.week))
     .map(w => ({ ...w, move: Math.round(w.move), recover: Math.round(w.recover), fuel: Math.round(w.fuel), connect: Math.round(w.connect), breathe: Math.round(w.breathe), misc: Math.round(w.misc) }))
 }
+export async function fetchJournalEntries(clientId) {
+  const { data, error } = await supabase
+    .from("journal_entries")
+    .select("*")
+    .eq("client_id", clientId)
+    .order("date", { ascending: false })
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+export async function createJournalEntry(clientId, date, content, author, parentId = null) {
+  const { data, error } = await supabase
+    .from("journal_entries")
+    .insert({ client_id: clientId, date, content, author, parent_id: parentId })
+    .select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateJournalEntry(id, content) {
+  const { data, error } = await supabase
+    .from("journal_entries")
+    .update({ content })
+    .eq("id", id)
+    .select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteJournalEntry(id) {
+  const { error } = await supabase.from("journal_entries").delete().eq("id", id);
+  if (error) throw error;
+}
