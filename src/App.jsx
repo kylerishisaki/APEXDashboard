@@ -774,7 +774,7 @@ function TaskListView({ clientId, isClientView }) {
 // ─── CLIENT DASHBOARD ─────────────────────────────────────────────────────────
 
 function PointsSection({data,pointsPage,setPointsPage,period}){
-  const WIN=period==="weekly"?8:period==="monthly"?6:4;
+  const WIN=period==="quarterly"?12:period==="monthly"?4:2;
   const total=data.length;
   if(!total) return null;
   const maxStart=Math.max(0,total-WIN);
@@ -1083,7 +1083,7 @@ function ClientDashboard({ client, onBack, onRefresh, isClientView }) {
           </div>
           {aggPoints.length>0?(
             <>
-              <PointsSection data={aggPoints} pointsPage={pointsPage} setPointsPage={setPointsPage} period={ptsPeriod}/>
+              <PointsSection data={weeklyPoints} pointsPage={pointsPage} setPointsPage={setPointsPage} period={ptsPeriod}/>
               <div className="card" style={{padding:0,overflow:"hidden"}}>
                 <table className="pts-table" style={{width:"100%"}}>
                   <thead><tr style={{background:"var(--deep)"}}><th style={{padding:"10px 16px"}}>Period</th>{PILLARS.map(p=><th key={p.id} style={{padding:"10px 8px",color:p.color}}>{p.label}</th>)}<th style={{padding:"10px 8px"}}>Total</th>{!isClientView&&ptsPeriod==="weekly"&&<th/>}</tr></thead>
