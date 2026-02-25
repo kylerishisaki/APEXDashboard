@@ -420,6 +420,41 @@ textarea.input{resize:vertical;min-height:80px}
 .action-check.done{background:rgba(78,205,196,.15);border-color:var(--teal);color:var(--teal)}
 .compliance-bar-wrap{height:6px;background:var(--border);border-radius:3px;overflow:hidden}
 .compliance-bar-fill{height:100%;border-radius:3px;transition:width .8s ease}
+
+@media(max-width:768px){
+  .sidebar{top:auto;bottom:0;left:0;right:0;width:100%;height:56px;flex-direction:row;justify-content:space-around;padding:0 8px;border-right:none;border-top:1px solid var(--border);z-index:200}
+  .sb-logo{display:none}
+  .sb-div{display:none}
+  .sb-btn{width:48px;height:48px;flex-direction:column}
+  .sb-btn.on::before{top:auto;bottom:0;left:25%;right:25%;width:auto;height:2px;border-radius:2px 2px 0 0}
+  .main{margin-left:0;padding:16px;padding-bottom:72px}
+  .h1{font-size:26px;letter-spacing:2px}
+  .h2{font-size:20px}
+  .g2,.g3,.g4,.g6{grid-template-columns:1fr}
+  .g5{grid-template-columns:repeat(2,1fr)}
+  .gmain{grid-template-columns:1fr}
+  .input-row{grid-template-columns:1fr}
+  .page-header{flex-direction:column;gap:12px}
+  .tabs{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tab{padding:9px 14px;font-size:8px;flex-shrink:0}
+  .share-banner{flex-direction:column;align-items:flex-start;gap:10px}
+  .client-banner{flex-wrap:wrap}
+  .day-panel-hdr{flex-direction:column;align-items:flex-start;gap:12px}
+  .day-panel-hdr > div:last-child{width:100%;justify-content:flex-start;flex-wrap:wrap}
+  .card{padding:14px}
+  .modal{padding:18px;margin:8px}
+  .modal-wide{max-width:100%}
+  .pts-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .pts-table th,.pts-table td{padding:8px 6px;font-size:11px;white-space:nowrap}
+  .cal-cell{min-height:52px;padding:4px}
+  .cal-pts-badge{font-size:10px}
+  .cal-event-chip{display:none}
+  .week-strip-day{padding:8px 4px}
+  .stat-val{font-size:28px}
+  .g5 .perm-card{padding:10px 6px}
+  .back-btn{margin-bottom:10px}
+  .toast{bottom:68px;right:12px;left:12px;font-size:9px}
+}
 `;
 
 function Toast({msg,onDone}){useEffect(()=>{const t=setTimeout(onDone,3000);return()=>clearTimeout(t);},[]);return <div className="toast">✓ {msg}</div>;}
@@ -709,7 +744,7 @@ function TaskListView({ clientId, isClientView }) {
         </div>
       ):(
         <div className="card" style={{padding:0,overflow:"hidden"}}>
-          <table className="pts-table" style={{width:"100%"}}>
+          <div className="pts-table-wrap"><table className="pts-table" style={{width:"100%"}}>
             <thead>
               <tr style={{background:"var(--deep)"}}>
                 {!isClientView&&(
@@ -765,7 +800,7 @@ function TaskListView({ clientId, isClientView }) {
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
     </div>
@@ -1235,10 +1270,10 @@ function ClientDashboard({ client, onBack, onRefresh, isClientView }) {
             <>
               <PointsSection data={weeklyPoints} pointsPage={pointsPage} setPointsPage={setPointsPage} period={ptsPeriod}/>
               <div className="card" style={{padding:0,overflow:"hidden"}}>
-                <table className="pts-table" style={{width:"100%"}}>
+                <div className="pts-table-wrap"><table className="pts-table" style={{width:"100%"}}>
                   <thead><tr style={{background:"var(--deep)"}}><th style={{padding:"10px 16px"}}>Period</th>{PILLARS.map(p=><th key={p.id} style={{padding:"10px 8px",color:p.color}}>{p.label}</th>)}<th style={{padding:"10px 8px"}}>Total</th>{!isClientView&&ptsPeriod==="weekly"&&<th/>}</tr></thead>
                   <tbody>{aggPoints.map((w,i)=><tr key={i} style={{background:i%2===0?"transparent":"rgba(255,255,255,.01)"}}><td style={{padding:"10px 16px"}}><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"var(--muted)"}}>{w.week}</div><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:8,color:"var(--dim)",marginTop:2}}>{w.label}</div></td>{PILLARS.map(p=><td key={p.id} style={{padding:"10px 8px",color:p.color,fontFamily:"'Bebas Neue',sans-serif",fontSize:18}}>{w[p.id]||0}</td>)}<td style={{padding:"10px 8px",fontFamily:"'Bebas Neue',sans-serif",fontSize:20,color:"var(--gold)"}}>{weekTotal(w)}</td>{!isClientView&&ptsPeriod==="weekly"&&<td><button className="btn btn-red btn-sm" onClick={async()=>{await deleteWeeklyPoints(client.id,w.week);setWeeklyPoints(await fetchWeeklyPoints(client.id));}}>✕</button></td>}</tr>)}</tbody>
-                </table>
+                </table></div>
               </div>
             </>
           ):(
