@@ -584,7 +584,7 @@ function AddClientModal({onSave,onClose}){
 }
 
 function EditClientModal({client,onSave,onClose}){
-  const [form,setForm]=useState({name:client.name,title:client.title||"",phase:client.phase,start_date:client.start_date,coach_note:client.coach_note||""});
+  const [form,setForm]=useState({name:client.name,title:client.title||"",phase:client.phase,start_date:client.start_date,coach_note:client.coach_note||"",status:client.status||"active"});
   const s=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
   return(<ModalWrap onClose={onClose}><div className="h2" style={{color:"var(--gold)",marginBottom:22}}>Edit Profile</div><div className="input-row"><div><label className="label">Name</label><input className="input" value={form.name} onChange={s("name")}/></div><div><label className="label">Title</label><input className="input" value={form.title} onChange={s("title")}/></div></div><div className="input-row"><div><label className="label">Start Date</label><input className="input" type="date" value={form.start_date} onChange={s("start_date")}/></div><div><label className="label">Phase</label><select className="input" value={form.phase} onChange={s("phase")}>{[1,2,3,4].map(p=><option key={p} value={p}>Phase {p} — {MACRO_PHASES[p-1].label}</option>)}</select></div></div><div className="field"><label className="label">Coach Note</label><textarea className="input" rows={3} value={form.coach_note} onChange={s("coach_note")}/></div><div style={{display:"flex",gap:10,marginTop:6}}><button className="btn btn-gold" onClick={()=>onSave({name:form.name,title:form.title,phase:parseInt(form.phase),start_date:form.start_date,coach_note:form.coach_note})}>Save</button><button className="btn btn-ghost" onClick={onClose}>Cancel</button></div></ModalWrap>);
 }
@@ -1376,16 +1376,22 @@ function AddPointsModal({ clientName, onSave, onClose }) {
 
 // ─── ROSTER ───────────────────────────────────────────────────────────────────
 
-function Roster({ clients, onSelect, onAdd }) {
+function Roster({ clients, onSelect, onAdd, onDelete }) {
+  const [showInactive,setShowInactive]=useState(false);
+  const active=clients.filter(c=>(c.status||"active")==="active");
+  const inactive=clients.filter(c=>c.status==="inactive");
   return(
     <div className="fade-in">
       <div className="page-header">
         <div><div className="h1">Client Roster</div><div className="mono tiny" style={{color:"var(--dim)",marginTop:4}}>XPT APEX Program · Coach Dashboard</div></div>
-        <button className="btn btn-gold" onClick={onAdd}>+ New Client</button>
+        <div style={{display:"flex",gap:8}}>
+          {inactive.length>0&&<button className="btn btn-ghost btn-sm" onClick={()=>setShowInactive(v=>!v)}>{showInactive?"Hide":"Show"} Inactive ({inactive.length})</button>}
+          <button className="btn btn-gold" onClick={onAdd}>+ New Client</button>
+        </div>
       </div>
-      <div className="sec">{clients.length} Active Client{clients.length!==1?"s":""}</div>
+      <div className="sec">{active.length} Active Client{active.length!==1?"s":""}</div>
       <div className="g3">
-        {clients.map(c=>{const pc=phaseColor(c.phase);return(
+        {active.map(c=>{const pc=phaseColor(c.phase);return(
           <div className="client-card" key={c.id} onClick={()=>onSelect(c.id)}>
             <div style={{height:3,background:`linear-gradient(90deg,${pc},transparent)`,marginBottom:10,borderRadius:2}}/>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
@@ -1405,6 +1411,26 @@ function Roster({ clients, onSelect, onAdd }) {
           </div>
         );})}
       </div>
+      {showInactive&&inactive.length>0&&(
+        <>
+          <div className="sec" style={{marginTop:24}}>Inactive</div>
+          <div className="g3">
+            {inactive.map(c=>{const pc="#5A6070";return(
+              <div className="client-card" key={c.id} style={{opacity:.6}}>
+                <div style={{height:3,background:`linear-gradient(90deg,${pc},transparent)`,marginBottom:10,borderRadius:2}}/>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                  <div><div style={{fontSize:17,fontWeight:700,color:"var(--muted)"}}>{c.name}</div><div className="mono tiny" style={{color:"var(--dim)",marginTop:2}}>{c.title}</div></div>
+                  <div className="pill" style={{background:"rgba(90,96,112,.15)",color:"var(--dim)",border:"1px solid #2A3040"}}>Inactive</div>
+                </div>
+                <div style={{display:"flex",gap:8,marginTop:8}}>
+                  <button className="btn btn-ghost btn-sm" style={{flex:1,justifyContent:"center"}} onClick={()=>onSelect(c.id)}>View</button>
+                  <button className="btn btn-red btn-sm" onClick={e=>{e.stopPropagation();onDelete(c.id);}}>Delete</button>
+                </div>
+              </div>
+            );})}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1452,6 +1478,7 @@ export default function APEXPlatform() {
   useEffect(()=>{if(session)loadClients();},[session,loadClients]);
 
   const handleAdd=async data=>{const c=await createClient(data);await loadClients();setAddModal(false);setSelectedId(c.id);};
+  const handleDelete=async id=>{if(!window.confirm("Permanently delete this client and all their data? This cannot be undone."))return;await supabase.from("clients").delete().eq("id",id);await loadClients();};
   const handleSignOut=async()=>{await signOut();setClients([]);setSelectedId(null);};
 
   if(session===undefined) return <><style>{S}</style><div className="loading-screen"><div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:32,color:"#E8A020",letterSpacing:3}}>APEX</div><div className="mono tiny" style={{color:"#5A6070"}}>Loading…</div></div></>;
@@ -1480,7 +1507,7 @@ export default function APEXPlatform() {
           <div style={{height:8}}/>
         </div>
         <div className="main">
-          {!selectedId&&<Roster clients={clients} onSelect={setSelectedId} onAdd={()=>setAddModal(true)}/>}
+          {!selectedId&&<Roster clients={clients} onSelect={setSelectedId} onAdd={()=>setAddModal(true)} onDelete={handleDelete}/>}
           {selectedId&&selected&&<ClientDashboard key={selectedId} client={selected} isClientView={false} onBack={()=>setSelectedId(null)} onRefresh={loadClients}/>}
         </div>
         {addModal&&<AddClientModal onSave={handleAdd} onClose={()=>setAddModal(false)}/>}
